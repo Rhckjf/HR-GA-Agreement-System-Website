@@ -1,0 +1,178 @@
+{
+  "identity": {
+    "name": "E1 Design System",
+    "archetype": "Organic & Earthy (Trust, Growth, Calm)",
+    "vibe": "Professional, Secure, Efficient, Human-Centric",
+    "principles": [
+      "Fusion over Imitation: Mix Swiss Layouts with Organic Tones",
+      "Emotion First: Calmness and Clarity for HR tasks",
+      "Content is King: Data legibility is paramount",
+      "Negative Space: Generous padding to reduce cognitive load"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "heading": {
+        "family": "Manrope, sans-serif",
+        "weights": ["600", "700", "800"],
+        "usage": "Page titles, Card headers, Modal titles"
+      },
+      "body": {
+        "family": "Public Sans, sans-serif",
+        "weights": ["400", "500"],
+        "usage": "General text, Table data, Form inputs"
+      },
+      "mono": {
+        "family": "JetBrains Mono, monospace",
+        "weights": ["400"],
+        "usage": "IDs, Contract Codes, System Logs"
+      }
+    },
+    "scale": {
+      "h1": "text-4xl font-bold tracking-tight text-stone-900",
+      "h2": "text-3xl font-semibold tracking-tight text-stone-900",
+      "h3": "text-2xl font-semibold tracking-tight text-stone-900",
+      "h4": "text-xl font-semibold tracking-tight text-stone-900",
+      "body_lg": "text-lg font-normal leading-relaxed text-stone-700",
+      "body_base": "text-base font-normal leading-relaxed text-stone-600",
+      "body_sm": "text-sm font-medium leading-normal text-stone-500",
+      "caption": "text-xs font-medium uppercase tracking-wider text-stone-400"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "DEFAULT": "#134E4A",
+        "foreground": "#FFFFFF",
+        "hover": "#115E59",
+        "description": "Deep Teal - Trust and Stability"
+      },
+      "secondary": {
+        "DEFAULT": "#F0FDFA",
+        "foreground": "#134E4A",
+        "hover": "#CCFBF1",
+        "description": "Mint White - Soft backgrounds for active states"
+      },
+      "accent": {
+        "DEFAULT": "#D97706",
+        "foreground": "#FFFFFF",
+        "hover": "#B45309",
+        "description": "Amber - Expiry Warnings and Attention"
+      },
+      "background": {
+        "DEFAULT": "#FAFAF9",
+        "paper": "#FFFFFF",
+        "subtle": "#F5F5F4"
+      },
+      "text": {
+        "primary": "#1C1917",
+        "secondary": "#57534E",
+        "muted": "#A8A29E"
+      },
+      "border": {
+        "DEFAULT": "#E7E5E4",
+        "focus": "#134E4A"
+      },
+      "status": {
+        "success": "#059669",
+        "warning": "#D97706",
+        "error": "#DC2626",
+        "info": "#2563EB"
+      }
+    },
+    "gradients": {
+      "login_overlay": "linear-gradient(to bottom, rgba(19, 78, 74, 0.9), rgba(19, 78, 74, 0.7))",
+      "sidebar": "linear-gradient(180deg, #FAFAF9 0%, #F5F5F4 100%)"
+    }
+  },
+  "layout": {
+    "spacing": {
+      "container_padding": "p-8 md:p-12",
+      "section_gap": "gap-8",
+      "card_padding": "p-6"
+    },
+    "grid": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+      "form": "grid grid-cols-1 md:grid-cols-2 gap-6"
+    },
+    "radius": {
+      "default": "rounded-md",
+      "card": "rounded-lg",
+      "button": "rounded-md"
+    },
+    "shadows": {
+      "card": "shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)]",
+      "hover": "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)]",
+      "dropdown": "shadow-xl border border-stone-100"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 rounded-md font-medium transition-all active:scale-95",
+      "secondary": "bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 h-10 px-4 py-2 rounded-md font-medium transition-all active:scale-95",
+      "ghost": "hover:bg-stone-100 text-stone-600 hover:text-stone-900 h-10 px-4 py-2 rounded-md font-medium transition-all",
+      "destructive": "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 h-10 px-4 py-2 rounded-md font-medium transition-all"
+    },
+    "cards": {
+      "base": "bg-white border border-stone-200 rounded-lg shadow-sm p-6",
+      "interactive": "bg-white border border-stone-200 rounded-lg shadow-sm p-6 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
+    },
+    "inputs": {
+      "base": "flex h-10 w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    },
+    "tables": {
+      "container": "w-full overflow-auto rounded-lg border border-stone-200 bg-white",
+      "header": "bg-stone-50 text-stone-500 text-xs uppercase font-semibold tracking-wider border-b border-stone-200",
+      "row": "border-b border-stone-100 hover:bg-stone-50/50 transition-colors",
+      "cell": "p-4 text-sm text-stone-600"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_bg": {
+        "url": "https://images.unsplash.com/photo-1704428381485-fbdc84a7e58c?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Minimalist Office Shelf",
+        "usage": "Login page background with overlay"
+      },
+      "placeholder_avatar": {
+        "url": "https://ui-avatars.com/api/?background=134E4A&color=fff",
+        "alt": "User Avatar",
+        "usage": "Default user profile picture"
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px, size 16px-20px"
+    }
+  },
+  "motion": {
+    "transitions": "transition-all duration-200 ease-out",
+    "hover_lift": "hover:-translate-y-0.5",
+    "page_enter": "animate-in fade-in slide-in-from-bottom-4 duration-500"
+  },
+  "accessibility": {
+    "contrast": "Ensure 4.5:1 for normal text, 3:1 for large text",
+    "focus_ring": "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+    "aria": "Use aria-label for icon-only buttons"
+  },
+  "instructions_to_main_agent": [
+    "Use the 'Organic & Earthy' color palette. Do not use default Tailwind blues or grays.",
+    "Implement the 'Manrope' font for all headings. Import it from Google Fonts.",
+    "Use 'Public Sans' for body text. Import it from Google Fonts.",
+    "For the Dashboard, use the 'Bento Grid' layout defined in layout.grid.dashboard.",
+    "Ensure all interactive elements have data-testid attributes (e.g., data-testid='login-submit').",
+    "Do not use transparent backgrounds for dropdowns or modals. Use solid white with shadow.",
+    "Use the provided image URLs for the login page and placeholders.",
+    "Follow the spacing guidelines strictly. Use p-8 or p-12 for main containers.",
+    "Use Shadcn components but override the styles with the classes defined in components section.",
+    "For the Agreement List, use a dense table layout with clear status badges.",
+    "Implement a 'Warning' state for agreements expiring within 30 days using the Accent color."
+  ],
+  "universal_guidelines": [
+    "Avoid generic 'AI slop' designs. Use the specific colors and fonts provided.",
+    "Create depth with subtle borders and shadows, not just flat colors.",
+    "Ensure all text is legible against its background.",
+    "Use micro-interactions (hover states) for all clickable elements.",
+    "Do not use emoji icons. Use Lucide React icons."
+  ]
+}
