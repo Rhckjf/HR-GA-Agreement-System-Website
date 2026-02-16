@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -9,7 +9,10 @@ import {
   Edit,
   Trash2,
   Eye,
-  Calendar
+  Calendar,
+  ChevronDown,
+  X,
+  Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,21 +49,37 @@ export default function AgreementsList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [agreements, setAgreements] = useState([]);
   const [filteredAgreements, setFilteredAgreements] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [selectedVendors, setSelectedVendors] = useState([]);
+  const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
+  const vendorDropdownRef = useRef(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
 
   const categories = ['Service Agreement', 'Vendor Contract', 'NDA', 'Partnership', 'Lease Agreement', 'Other'];
 
   useEffect(() => {
     fetchAgreements();
+    fetchVendors();
   }, []);
+
 
   useEffect(() => {
     filterAgreements();
-  }, [agreements, searchTerm, categoryFilter, statusFilter]);
+  }, [agreements, searchTerm, categoryFilter, statusFilter, selectedVendors]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(event.target)) {
+        setVendorDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchAgreements = async () => {
     try {
@@ -73,6 +92,18 @@ export default function AgreementsList() {
       toast.error('Failed to fetch agreements');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVendors = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API}/vendors`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setVendors(response.data);
+    } catch (error) {
+      console.error('Failed to fetch vendors');
     }
   };
 
@@ -92,6 +123,10 @@ export default function AgreementsList() {
 
     if (statusFilter !== 'all') {
       filtered = filtered.filter(a => a.status === statusFilter);
+    }
+
+    if (selectedVendors.length > 0) {
+      filtered = filtered.filter(a => selectedVendors.includes(a.vendor_name));
     }
 
     setFilteredAgreements(filtered);
@@ -150,16 +185,82 @@ export default function AgreementsList() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-stone-200 p-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
             <Input
-              placeholder="Search agreements..."
+              placeholder="Search by title or vendor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 h-10"
               data-testid="search-input"
             />
+          </div>
+
+          <div className="relative" ref={vendorDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setVendorDropdownOpen(!vendorDropdownOpen)}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-stone-200 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-stone-400 focus:ring-offset-2"
+              data-testid="vendor-filter"
+            >
+              <span className="truncate text-stone-700">
+                {selectedVendors.length === 0
+                  ? 'All Vendors'
+                  : selectedVendors.length === 1
+                    ? selectedVendors[0]
+                    : `${selectedVendors.length} vendors selected`}
+              </span>
+              <div className="flex items-center gap-1">
+                {selectedVendors.length > 0 && (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); setSelectedVendors([]); }}
+                    className="rounded-full p-0.5 hover:bg-stone-100 cursor-pointer"
+                  >
+                    <X size={14} className="text-stone-400" />
+                  </span>
+                )}
+                <ChevronDown size={16} className="text-stone-400" />
+              </div>
+            </button>
+            {vendorDropdownOpen && (
+              <div className="absolute z-50 mt-1 w-full rounded-md border border-stone-200 bg-white shadow-lg">
+                <div className="max-h-60 overflow-auto p-1">
+                  {(() => {
+                    const vendorNames = new Set(vendors.map(v => v.name));
+                    agreements.forEach(a => { if (a.vendor_name) vendorNames.add(a.vendor_name); });
+                    const sortedNames = Array.from(vendorNames).sort();
+                    if (sortedNames.length === 0) {
+                      return <div className="px-3 py-2 text-sm text-stone-400">No vendors available</div>;
+                    }
+                    return sortedNames.map(name => {
+                      const isSelected = selectedVendors.includes(name);
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            setSelectedVendors(prev =>
+                              isSelected
+                                ? prev.filter(v => v !== name)
+                                : [...prev, name]
+                            );
+                          }}
+                          className={`flex w-full items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${isSelected ? 'bg-[#F0FDFA] text-[#134E4A]' : 'text-stone-700 hover:bg-stone-50'
+                            }`}
+                        >
+                          <div className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-[#134E4A] bg-[#134E4A]' : 'border-stone-300'
+                            }`}>
+                            {isSelected && <Check size={12} className="text-white" />}
+                          </div>
+                          {name}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
 
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -196,6 +297,7 @@ export default function AgreementsList() {
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Title</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Vendor</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Category</TableHead>
+              <TableHead className="text-xs uppercase font-semibold text-stone-500">Cycle Year</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Start Date</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Expiry Date</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Status</TableHead>
@@ -219,6 +321,9 @@ export default function AgreementsList() {
                   <TableCell className="font-medium text-stone-900">{agreement.title}</TableCell>
                   <TableCell className="text-stone-600">{agreement.vendor_name || 'N/A'}</TableCell>
                   <TableCell className="text-stone-600">{agreement.category}</TableCell>
+                  <TableCell className="text-stone-600">
+                    {agreement.cycle_year || new Date(agreement.start_date).getFullYear()}
+                  </TableCell>
                   <TableCell className="text-stone-600">
                     {new Date(agreement.start_date).toLocaleDateString()}
                   </TableCell>

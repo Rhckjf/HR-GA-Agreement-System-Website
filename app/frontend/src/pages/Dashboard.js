@@ -8,10 +8,19 @@ import {
   XCircle,
   Building2,
   Plus,
-  TrendingUp
+  TrendingUp,
+  PieChart as PieChartIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 import { API } from '../config';
 
@@ -19,6 +28,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [expiringAgreements, setExpiringAgreements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [timeframe, setTimeframe] = useState('1m');
 
   useEffect(() => {
     fetchData();
@@ -82,6 +92,34 @@ export default function Dashboard() {
     },
   ];
 
+  // Calculate Pie Data based on selected timeframe
+  const getPieData = () => {
+    if (!stats?.expiry_distribution) return [];
+    const dist = stats.expiry_distribution;
+    const expired = dist.expired;
+    let expiringSoon = 0;
+
+    if (timeframe === '1m') {
+      expiringSoon = dist.expiring_soon_1_month;
+    } else if (timeframe === '3m') {
+      expiringSoon = dist.expiring_soon_1_month + dist.expiring_1_3_months;
+    } else if (timeframe === '6m') {
+      expiringSoon = dist.expiring_soon_1_month + dist.expiring_1_3_months + dist.expiring_3_6_months;
+    } else if (timeframe === '1y') {
+      expiringSoon = dist.expiring_soon_1_month + dist.expiring_1_3_months + dist.expiring_3_6_months + dist.expiring_6_12_months;
+    }
+
+    const active = Math.max(0, stats.total_agreements - expired - expiringSoon);
+
+    return [
+      { name: 'Active', value: active, color: '#059669' },
+      { name: 'Expiring Soon', value: expiringSoon, color: '#EAB308' },
+      { name: 'Expired', value: expired, color: '#DC2626' },
+    ].filter(item => item.value > 0);
+  };
+
+  const pieData = getPieData();
+
   return (
     <div className="space-y-8" data-testid="dashboard">
       {/* Header */}
@@ -127,10 +165,68 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Additional Info Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Expiring Soon */}
-        <Card className="bg-white border border-stone-200 rounded-lg shadow-sm">
+      {/* Charts and Lists Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Pie Chart Card - Takes up 1 column */}
+        <Card className="bg-white border border-stone-200 rounded-lg shadow-sm col-span-1 lg:col-span-1">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-lg font-semibold text-stone-900 flex items-center gap-2">
+              <PieChartIcon size={20} className="text-[#134E4A]" />
+              Status Overview
+            </CardTitle>
+            <Select value={timeframe} onValueChange={setTimeframe}>
+              <SelectTrigger className="w-[110px] h-8 text-xs">
+                <SelectValue placeholder="Timeframe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1m">1 Month</SelectItem>
+                <SelectItem value="3m">3 Months</SelectItem>
+                <SelectItem value="6m">6 Months</SelectItem>
+                <SelectItem value="1y">1 Year</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    iconType="circle"
+                    formatter={(value, entry) => (
+                      <span className="text-xs text-stone-600 font-medium ml-1">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-stone-400 text-sm">
+                No data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Expiring Soon - Takes up 2 columns */}
+        <Card className="bg-white border border-stone-200 rounded-lg shadow-sm col-span-1 lg:col-span-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-xl font-semibold text-stone-900 flex items-center gap-2">
               <AlertCircle size={20} className="text-[#D97706]" />
@@ -171,7 +267,10 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
 
+      {/* Vendor Summary & System Health - Bottom Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Vendor Summary */}
         <Card className="bg-white border border-stone-200 rounded-lg shadow-sm">
           <CardHeader className="pb-3">
@@ -200,20 +299,20 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Quick Stats */}
-      <Card className="bg-gradient-to-br from-[#134E4A] to-[#115E59] border-0 text-white">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm opacity-90 mb-2">System Health</p>
-              <p className="text-2xl font-bold">All Systems Operational</p>
+        {/* Quick Stats */}
+        <Card className="bg-gradient-to-br from-[#134E4A] to-[#115E59] border-0 text-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm opacity-90 mb-2">System Health</p>
+                <p className="text-2xl font-bold">All Systems Operational</p>
+              </div>
+              <TrendingUp size={40} strokeWidth={2} className="opacity-90" />
             </div>
-            <TrendingUp size={40} strokeWidth={2} className="opacity-90" />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

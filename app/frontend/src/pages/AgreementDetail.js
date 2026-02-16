@@ -15,6 +15,18 @@ import {
   Download,
   AlertCircle
 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 import { API } from '../config';
 
@@ -22,11 +34,32 @@ export default function AgreementDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [agreement, setAgreement] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
   useEffect(() => {
-    fetchAgreement();
+    const fetchData = async () => {
+      await Promise.all([fetchAgreement(), fetchCurrentUser()]);
+      setLoading(false);
+    };
+    fetchData();
   }, [id]);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const response = await axios.get(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCurrentUser(response.data);
+    } catch (error) {
+      console.error('Failed to fetch user');
+    }
+  };
 
   const fetchAgreement = async () => {
     try {
@@ -35,10 +68,71 @@ export default function AgreementDetail() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAgreement(response.data);
+      if (response.data.file_path) {
+        fetchPreview(response.data.id);
+      }
     } catch (error) {
       toast.error('Failed to fetch agreement details');
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchPreview = async (agreementId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API}/agreements/${agreementId}/preview`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = URL.createObjectURL(response.data);
+      setPreviewUrl(url);
+    } catch (error) {
+      console.error('Failed to load preview');
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API}/agreements/${id}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', agreement.file_path.split('/').pop()); // Extract filename
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      toast.error('Failed to download file');
+    }
+  };
+
+  const handleApprove = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${API}/agreements/${id}/approve`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Agreement approved');
+      fetchAgreement();
+    } catch (error) {
+      toast.error('Failed to approve agreement');
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${API}/agreements/${id}/reject`, { reason: rejectReason }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Agreement rejected');
+      setRejectDialogOpen(false);
+      fetchAgreement();
+    } catch (error) {
+      toast.error('Failed to reject agreement');
     }
   };
 
@@ -211,6 +305,57 @@ export default function AgreementDetail() {
                 </div>
               )}
             </CardContent>
+
+          </Card>
+
+          {/* Approval Workflow */}
+          <Card className="bg-white border border-stone-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-stone-900">Approval Workflow</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm text-stone-500 mb-1">Approval Status</p>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${agreement.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
+                  agreement.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                  {agreement.approval_status ? agreement.approval_status.toUpperCase() : 'PENDING'}
+                </span>
+              </div>
+
+              {agreement.approval_status === 'approved' && agreement.approved_by && (
+                <div>
+                  <p className="text-sm text-stone-500 mb-1">Approved By</p>
+                  <p className="text-sm font-medium text-stone-900">{agreement.approved_by}</p>
+                  <p className="text-xs text-stone-500">{new Date(agreement.approved_at).toLocaleString()}</p>
+                </div>
+              )}
+
+              {agreement.approval_status === 'rejected' && (
+                <div>
+                  <p className="text-sm text-stone-500 mb-1">Rejection Reason</p>
+                  <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{agreement.rejection_reason}</p>
+                </div>
+              )}
+
+              {currentUser?.role === 'admin' && agreement.approval_status === 'pending' && (
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={handleApprove}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    onClick={() => setRejectDialogOpen(true)}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Reject
+                  </Button>
+                </div>
+              )}
+            </CardContent>
           </Card>
 
           {/* Metadata Card */}
@@ -238,6 +383,37 @@ export default function AgreementDetail() {
             </CardContent>
           </Card>
         </div>
+
+        <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+          <AlertDialogContent className="bg-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reject Agreement</AlertDialogTitle>
+              <AlertDialogDescription>
+                Please provide a reason for rejecting this agreement.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4">
+              <Label htmlFor="reason" className="mb-2 block">Reason</Label>
+              <Textarea
+                id="reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Enter rejection reason..."
+                className="resize-none"
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-stone-200">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleReject}
+                disabled={!rejectReason}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Reject Agreement
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

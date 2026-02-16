@@ -32,6 +32,7 @@ export default function AgreementForm() {
     category: '',
     start_date: '',
     expiry_date: '',
+    cycle_year: new Date().getFullYear(),
     description: ''
   });
 
@@ -69,6 +70,7 @@ export default function AgreementForm() {
         category: agreement.category,
         start_date: agreement.start_date.split('T')[0],
         expiry_date: agreement.expiry_date.split('T')[0],
+        cycle_year: agreement.cycle_year || new Date(agreement.start_date).getFullYear(),
         description: agreement.description || ''
       });
     } catch (error) {
@@ -198,6 +200,21 @@ export default function AgreementForm() {
                 </Select>
               </div>
 
+
+
+              <div className="space-y-2">
+                <Label htmlFor="cycle_year" className="text-sm font-medium text-stone-700">Cycle Year *</Label>
+                <Input
+                  id="cycle_year"
+                  data-testid="cycle-year-input"
+                  type="number"
+                  value={formData.cycle_year}
+                  onChange={(e) => setFormData({ ...formData, cycle_year: parseInt(e.target.value) || '' })}
+                  required
+                  className="h-10"
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="start_date" className="text-sm font-medium text-stone-700">Start Date *</Label>
                 <Input
@@ -278,6 +295,6 @@ export default function AgreementForm() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </div >
   );
 }

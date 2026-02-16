@@ -23,23 +23,45 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 
 import { API } from '../config';
 
 export default function VendorsList() {
   const [vendors, setVendors] = useState([]);
+  const [filteredVendors, setFilteredVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [editingVendor, setEditingVendor] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('all');
   const [formData, setFormData] = useState({
     name: '',
+    type: 'barang',
     contact_person: '',
     email: '',
     phone: '',
     address: ''
   });
+
+  useEffect(() => {
+    filterVendors();
+  }, [vendors, typeFilter]);
+
+  const filterVendors = () => {
+    if (typeFilter === 'all') {
+      setFilteredVendors(vendors);
+    } else {
+      setFilteredVendors(vendors.filter(v => v.type === typeFilter));
+    }
+  };
 
   useEffect(() => {
     fetchVendors();
@@ -52,6 +74,7 @@ export default function VendorsList() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setVendors(response.data);
+      setFilteredVendors(response.data);
     } catch (error) {
       toast.error('Failed to fetch vendors');
     } finally {
@@ -64,6 +87,7 @@ export default function VendorsList() {
       setEditingVendor(vendor);
       setFormData({
         name: vendor.name,
+        type: vendor.type || 'barang',
         contact_person: vendor.contact_person || '',
         email: vendor.email || '',
         phone: vendor.phone || '',
@@ -73,6 +97,7 @@ export default function VendorsList() {
       setEditingVendor(null);
       setFormData({
         name: '',
+        type: 'barang',
         contact_person: '',
         email: '',
         phone: '',
@@ -133,24 +158,37 @@ export default function VendorsList() {
           <h1 className="text-4xl font-bold tracking-tight text-stone-900">Vendors</h1>
           <p className="text-base text-stone-600 mt-2">Manage your vendor contacts and information</p>
         </div>
-        <Button
-          onClick={() => handleOpenDialog()}
-          className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
-          data-testid="add-vendor-button"
-        >
-          <Plus size={18} />
-          Add Vendor
-        </Button>
+        <div className="flex gap-4">
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[180px] h-11 bg-white" data-testid="vendor-type-filter">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="barang">Barang</SelectItem>
+              <SelectItem value="jasa">Jasa</SelectItem>
+              <SelectItem value="customer">Customer</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={() => handleOpenDialog()}
+            className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
+            data-testid="add-vendor-button"
+          >
+            <Plus size={18} />
+            Add Vendor
+          </Button>
+        </div>
       </div>
 
       {/* Vendors Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {vendors.length === 0 ? (
+        {filteredVendors.length === 0 ? (
           <div className="col-span-full text-center py-12 text-stone-500">
             No vendors found. Create your first vendor to get started.
           </div>
         ) : (
-          vendors.map((vendor) => (
+          filteredVendors.map((vendor) => (
             <Card
               key={vendor.id}
               className="bg-white border border-stone-200 shadow-sm hover:shadow-md transition-all"
@@ -162,7 +200,15 @@ export default function VendorsList() {
                     <div className="bg-[#F0FDFA] p-2 rounded-lg">
                       <Building2 size={20} className="text-[#134E4A]" />
                     </div>
-                    <CardTitle className="text-lg font-semibold text-stone-900">{vendor.name}</CardTitle>
+                    <div>
+                      <CardTitle className="text-lg font-semibold text-stone-900">{vendor.name}</CardTitle>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${vendor.type === 'barang' ? 'bg-blue-100 text-blue-700' :
+                        vendor.type === 'jasa' ? 'bg-purple-100 text-purple-700' :
+                          'bg-orange-100 text-orange-700'
+                        }`}>
+                        {vendor.type ? vendor.type.charAt(0).toUpperCase() + vendor.type.slice(1) : 'Barang'}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex gap-1">
                     <Button
@@ -238,6 +284,23 @@ export default function VendorsList() {
                   required
                   className="h-10"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="type" className="text-sm font-medium text-stone-700">Vendor Type *</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(val) => setFormData({ ...formData, type: val })}
+                >
+                  <SelectTrigger id="type" className="h-10">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="barang">Barang</SelectItem>
+                    <SelectItem value="jasa">Jasa</SelectItem>
+                    <SelectItem value="customer">Customer</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -330,6 +393,6 @@ export default function VendorsList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div >
   );
 }

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, File, UploadFile, status
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -38,6 +39,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: str
+    department: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -49,6 +51,7 @@ class User(BaseModel):
     email: str
     name: str
     role: str = "staff"
+    department: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class TokenResponse(BaseModel):
@@ -57,6 +60,7 @@ class TokenResponse(BaseModel):
 
 class VendorCreate(BaseModel):
     name: str
+    type: str # barang, jasa, customer
     contact_person: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -66,6 +70,7 @@ class Vendor(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
+    type: str = "barang"
     contact_person: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -78,6 +83,7 @@ class AgreementCreate(BaseModel):
     category: str
     start_date: str
     expiry_date: str
+    cycle_year: Optional[int] = None
     description: Optional[str] = None
     file_name: Optional[str] = None
 
@@ -87,7 +93,11 @@ class AgreementUpdate(BaseModel):
     category: Optional[str] = None
     start_date: Optional[str] = None
     expiry_date: Optional[str] = None
+    cycle_year: Optional[int] = None
     description: Optional[str] = None
+    
+class AgreementReject(BaseModel):
+    reason: str
 
 class Agreement(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -98,12 +108,26 @@ class Agreement(BaseModel):
     category: str
     start_date: str
     expiry_date: str
+    cycle_year: Optional[int] = None
     description: Optional[str] = None
     file_path: Optional[str] = None
     status: str
+    approval_status: str = "pending"
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    department: Optional[str] = None
     created_by: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class ExpiryDistribution(BaseModel):
+    active_over_1_year: int
+    expiring_6_12_months: int
+    expiring_3_6_months: int
+    expiring_1_3_months: int
+    expiring_soon_1_month: int
+    expired: int
 
 class DashboardStats(BaseModel):
     total_agreements: int
@@ -111,6 +135,7 @@ class DashboardStats(BaseModel):
     expiring_soon: int
     expired_agreements: int
     total_vendors: int
+    expiry_distribution: ExpiryDistribution
 
 class Notification(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -188,6 +213,7 @@ async def register(user_data: UserCreate):
         "password_hash": hash_password(user_data.password),
         "name": user_data.name,
         "role": "staff",
+        "department": user_data.department,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
@@ -214,9 +240,14 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 # Vendor Routes
 @api_router.get("/vendors", response_model=List[Vendor])
-async def get_vendors(current_user: dict = Depends(get_current_user)):
-    vendors = await db.vendors.find({}, {"_id": 0}).to_list(1000)
-    return vendors
+async def get_vendors(
+    type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if type:
+        query['type'] = type
+    return await db.vendors.find(query, {"_id": 0}).to_list(1000)
 
 @api_router.post("/vendors", response_model=Vendor)
 async def create_vendor(vendor_data: VendorCreate, current_user: dict = Depends(get_current_user)):
@@ -249,9 +280,21 @@ async def get_agreements(
     category: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    cycle_year: Optional[int] = None,
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
+    
+    # Department Scoping
+    if current_user['role'] != 'admin':
+        # If user has no department, they see nothing? Or maybe a default "General" department?
+        # For now, if they have a department, filter by it.
+        # If they don't (creation issue), maybe they see nothing or all?
+        # Safer to show nothing or only their own created items if dept is missing.
+        # Let's filter by department if set.
+        if current_user.get('department'):
+            query["department"] = current_user['department']
+    
     if category:
         query["category"] = category
     if search:
@@ -259,6 +302,9 @@ async def get_agreements(
             {"title": {"$regex": search, "$options": "i"}},
             {"vendor_name": {"$regex": search, "$options": "i"}}
         ]
+        
+    if cycle_year:
+        query["cycle_year"] = cycle_year
     
     agreements = await db.agreements.find(query, {"_id": 0}).to_list(1000)
     
@@ -292,6 +338,8 @@ async def create_agreement(agreement_data: AgreementCreate, current_user: dict =
     agreement_dict['id'] = str(uuid.uuid4())
     agreement_dict['vendor_name'] = vendor['name']
     agreement_dict['status'] = calculate_agreement_status(agreement_data.expiry_date)
+    agreement_dict['department'] = current_user.get('department')
+    agreement_dict['approval_status'] = 'pending'
     agreement_dict['created_by'] = current_user['id']
     agreement_dict['created_at'] = datetime.now(timezone.utc).isoformat()
     agreement_dict['updated_at'] = datetime.now(timezone.utc).isoformat()
@@ -380,33 +428,183 @@ async def upload_agreement_file(
     
     return {"message": "File uploaded successfully", "file_path": str(file_path)}
 
-# Dashboard Routes
+@api_router.get("/agreements/{agreement_id}/download")
+async def download_agreement(agreement_id: str, current_user: dict = Depends(get_current_user)):
+    agreement = await db.agreements.find_one({"id": agreement_id})
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+        
+    if current_user['role'] != 'admin' and agreement.get('department') and agreement.get('department') != current_user.get('department'):
+         raise HTTPException(status_code=403, detail="Access denied")
+
+    if not agreement.get('file_path'):
+        raise HTTPException(status_code=404, detail="No file uploaded")
+
+    file_path = Path(agreement['file_path'])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on server")
+        
+    return FileResponse(file_path, filename=file_path.name)
+
+@api_router.get("/agreements/{agreement_id}/preview")
+async def preview_agreement(agreement_id: str, current_user: dict = Depends(get_current_user)):
+    agreement = await db.agreements.find_one({"id": agreement_id})
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+        
+    if current_user['role'] != 'admin' and agreement.get('department') and agreement.get('department') != current_user.get('department'):
+         raise HTTPException(status_code=403, detail="Access denied")
+
+    if not agreement.get('file_path'):
+        raise HTTPException(status_code=404, detail="No file uploaded")
+
+    file_path = Path(agreement['file_path'])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on server")
+        
+    return FileResponse(file_path, content_disposition_type="inline")
+
+@api_router.put("/agreements/{agreement_id}/approve", response_model=Agreement)
+async def approve_agreement(agreement_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Only admin can approve")
+    
+    result = await db.agreements.find_one_and_update(
+        {"id": agreement_id},
+        {"$set": {
+            "approval_status": "approved",
+            "approved_by": current_user['name'],
+            "approved_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": None
+        }},
+        return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+        
+    result['status'] = calculate_agreement_status(result['expiry_date'])
+    return Agreement(**{k: v for k, v in result.items() if k != '_id'})
+
+@api_router.put("/agreements/{agreement_id}/reject", response_model=Agreement)
+async def reject_agreement(agreement_id: str, reject_data: AgreementReject, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Only admin can reject")
+    
+    result = await db.agreements.find_one_and_update(
+        {"id": agreement_id},
+        {"$set": {
+            "approval_status": "rejected",
+            "rejection_reason": reject_data.reason,
+            "approved_by": current_user['name'], # Track who rejected too
+            "approved_at": datetime.now(timezone.utc).isoformat()
+        }},
+        return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    
+    # Create notification for the creator
+    creator_id = result.get('created_by')
+    if creator_id:
+        notification = {
+            "id": str(uuid.uuid4()),
+            "user_id": creator_id,
+            "agreement_id": agreement_id,
+            "agreement_title": result['title'],
+            "message": f"Agreement '{result['title']}' was rejected: {reject_data.reason}",
+            "type": "rejection",
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.notifications.insert_one(notification)
+        
+    result['status'] = calculate_agreement_status(result['expiry_date'])
+    return Agreement(**{k: v for k, v in result.items() if k != '_id'})
+
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
-    all_agreements = await db.agreements.find({}, {"_id": 0}).to_list(1000)
+    query = {}
+    if current_user['role'] != 'admin' and current_user.get('department'):
+        query['department'] = current_user['department']
+        
+    all_agreements = await db.agreements.find(query, {"_id": 0}).to_list(1000)
     
     total_agreements = len(all_agreements)
     active_count = 0
-    expiring_count = 0
+    expiring_soon_count = 0 # Standard "expiring soon" (<= 30 days)
     expired_count = 0
     
+    # Distribution buckets
+    dist_expired = 0
+    dist_soon_1_month = 0
+    dist_1_3_months = 0
+    dist_3_6_months = 0
+    dist_6_12_months = 0
+    dist_active_over_1_year = 0
+
+    now = datetime.now(timezone.utc)
+    
     for agreement in all_agreements:
+        # Calculate status using existing helper for general stats
         status = calculate_agreement_status(agreement['expiry_date'])
         if status == 'active':
             active_count += 1
         elif status == 'expiring_soon':
-            expiring_count += 1
+            expiring_soon_count += 1
         elif status == 'expired':
             expired_count += 1
-    
+            
+        # Create detailed distribution
+        try:
+            expiry_date_str = agreement['expiry_date']
+            if expiry_date_str.endswith('Z'):
+                expiry_date = datetime.fromisoformat(expiry_date_str.replace('Z', '+00:00'))
+            elif '+' in expiry_date_str or expiry_date_str.endswith('00:00'):
+                expiry_date = datetime.fromisoformat(expiry_date_str)
+            else:
+                expiry_date = datetime.fromisoformat(expiry_date_str).replace(tzinfo=timezone.utc)
+            
+            days_until_expiry = (expiry_date - now).days
+            
+            if days_until_expiry < 0:
+                dist_expired += 1
+            elif days_until_expiry <= 30:
+                dist_soon_1_month += 1
+            elif days_until_expiry <= 90:
+                dist_1_3_months += 1
+            elif days_until_expiry <= 180:
+                dist_3_6_months += 1
+            elif days_until_expiry <= 365:
+                dist_6_12_months += 1
+            else:
+                dist_active_over_1_year += 1
+
+        except Exception as e:
+            print(f"Error calculating distribution for date {agreement.get('expiry_date')}: {e}")
+            # Fallback based on status if date parsing fails, though unlikely given prior check
+            if status == 'expired':
+                dist_expired += 1
+            elif status == 'expiring_soon':
+                dist_soon_1_month += 1
+            else:
+                dist_active_over_1_year += 1
+
     total_vendors = await db.vendors.count_documents({})
     
     return DashboardStats(
         total_agreements=total_agreements,
         active_agreements=active_count,
-        expiring_soon=expiring_count,
+        expiring_soon=expiring_soon_count,
         expired_agreements=expired_count,
-        total_vendors=total_vendors
+        total_vendors=total_vendors,
+        expiry_distribution=ExpiryDistribution(
+            active_over_1_year=dist_active_over_1_year,
+            expiring_6_12_months=dist_6_12_months,
+            expiring_3_6_months=dist_3_6_months,
+            expiring_1_3_months=dist_1_3_months,
+            expiring_soon_1_month=dist_soon_1_month,
+            expired=dist_expired
+        )
     )
 
 # Notification Routes
