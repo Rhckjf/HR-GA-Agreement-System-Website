@@ -1,0 +1,46 @@
+Creating an optimized production build...
+Compiled with warnings.
+
+[eslint] 
+src\pages\AdminDashboard.js
+  Line 45:8:  React Hook useEffect has missing dependencies: 'navigate', 'user.department', and 'user.role'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\pages\AgreementDetail.js
+  Line 49:6:  React Hook useEffect has a missing dependency: 'fetchAgreement'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\pages\AgreementForm.js
+  Line 46:6:  React Hook useEffect has missing dependencies: 'fetchAgreement' and 'isEdit'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\pages\AgreementsList.js
+  Line 72:6:  React Hook useEffect has a missing dependency: 'filterAgreements'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\pages\DepartmentDashboard.js
+  Line 46:8:  React Hook useEffect has missing dependencies: 'navigate', 'user.department', and 'user.role'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\pages\UserManagement.js
+  Line 34:8:  React Hook useEffect has missing dependencies: 'currentUser.role' and 'navigate'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\pages\VendorsList.js
+  Line 56:6:  React Hook useEffect has a missing dependency: 'filterVendors'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+File sizes after gzip:
+
+  257.91 kB  build\static\js\main.9ff7b53e.js
+  11.49 kB   build\static\css\main.0363682b.css
+
+The project was built assuming it is hosted at /.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+You may serve it with a static server:
+
+  yarn global add serve
+  serve -s build
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+

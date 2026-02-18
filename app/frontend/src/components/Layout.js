@@ -8,7 +8,10 @@ import {
   LogOut,
   Menu,
   X,
-  User
+  User,
+  Shield,
+  Users as UsersIcon,
+  Grid3X3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import axios from 'axios';
-
+import { getDepartmentConfig, ADMIN_CONFIG } from '@/departmentConfig';
 import { API } from '../config';
 
 export default function Layout({ children }) {
@@ -57,14 +60,31 @@ export default function Layout({ children }) {
     navigate('/login');
   };
 
-  const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Agreements', href: '/agreements', icon: FileText },
-    { name: 'Vendors', href: '/vendors', icon: Building2 },
-  ];
+  const isAdmin = user?.role === 'admin';
+  const deptConfig = user?.department ? getDepartmentConfig(user.department) : null;
+  const themeColor = isAdmin ? ADMIN_CONFIG.color : (deptConfig?.color || '#134E4A');
+
+  const getNavigation = () => {
+    if (isAdmin) {
+      return [
+        { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+        { name: 'Agreements', href: '/agreements', icon: FileText },
+        { name: 'Vendors', href: '/vendors', icon: Building2 },
+        { name: 'Users', href: '/admin/users', icon: UsersIcon },
+      ];
+    }
+    return [
+      { name: 'Dashboard', href: `/department/${user?.department}`, icon: LayoutDashboard },
+      { name: 'Agreements', href: '/agreements', icon: FileText },
+      { name: 'Vendors', href: '/vendors', icon: Building2 },
+    ];
+  };
+
+  const navigation = getNavigation();
 
   const isActive = (path) => {
-    if (path === '/') return location.pathname === '/';
+    if (path === '/admin') return location.pathname === '/admin';
+    if (path.startsWith('/department/')) return location.pathname.startsWith('/department/');
     return location.pathname.startsWith(path);
   };
 
@@ -81,12 +101,30 @@ export default function Layout({ children }) {
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <div className="flex items-center gap-2">
-              <FileText className="text-[#134E4A]" size={28} strokeWidth={2} />
+              <FileText style={{ color: themeColor }} size={28} strokeWidth={2} />
               <h1 className="text-xl font-bold text-stone-900">PT Diamond Electric Indonesia</h1>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Department Badge */}
+            {user && (
+              <Badge
+                className="hidden sm:inline-flex text-xs font-medium gap-1 px-2.5 py-1"
+                style={{
+                  backgroundColor: isAdmin ? '#F0FDFA' : (deptConfig?.bgColor || '#F0FDFA'),
+                  color: themeColor,
+                  border: `1px solid ${themeColor}30`,
+                }}
+              >
+                {isAdmin ? (
+                  <><Shield size={12} /> Admin</>
+                ) : (
+                  <>{deptConfig?.icon && <deptConfig.icon size={12} />} {user.department}</>
+                )}
+              </Badge>
+            )}
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative" data-testid="notifications-button">
@@ -121,12 +159,22 @@ export default function Layout({ children }) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2" data-testid="user-menu-button">
-                  <User size={18} />
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                    style={{ backgroundColor: themeColor }}
+                  >
+                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
                   <span className="hidden sm:inline text-sm font-medium">{user?.name || 'User'}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-white">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuLabel>
+                  <div>
+                    <p className="text-sm">{user?.name}</p>
+                    <p className="text-xs text-stone-500 font-normal">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} data-testid="logout-button">
                   <LogOut size={16} className="mr-2" />
@@ -161,10 +209,11 @@ export default function Layout({ children }) {
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-all
                     ${active
-                      ? 'bg-[#F0FDFA] text-[#134E4A] border-l-4 border-[#134E4A]'
+                      ? 'text-white'
                       : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
                     }
                   `}
+                  style={active ? { backgroundColor: themeColor } : {}}
                 >
                   <Icon size={20} strokeWidth={active ? 2.5 : 2} />
                   {item.name}
@@ -172,6 +221,22 @@ export default function Layout({ children }) {
               );
             })}
           </nav>
+
+          {/* Sidebar footer */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-stone-200">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-stone-50">
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                style={{ backgroundColor: themeColor }}
+              >
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-stone-900 truncate">{user?.name}</p>
+                <p className="text-xs text-stone-500 truncate">{isAdmin ? 'Administrator' : user?.department}</p>
+              </div>
+            </div>
+          </div>
         </aside>
 
         {/* Main Content */}

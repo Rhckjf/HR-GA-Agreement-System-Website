@@ -3,6 +3,9 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
+import DepartmentDashboard from "@/pages/DepartmentDashboard";
+import UserManagement from "@/pages/UserManagement";
 import AgreementsList from "@/pages/AgreementsList";
 import AgreementForm from "@/pages/AgreementForm";
 import AgreementDetail from "@/pages/AgreementDetail";
@@ -25,6 +28,17 @@ function App() {
     return isAuthenticated ? children : <Navigate to="/login" />;
   };
 
+  const HomeRedirect = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    }
+    if (user.department) {
+      return <Navigate to={`/department/${user.department}`} replace />;
+    }
+    return <Navigate to="/login" replace />;
+  };
+
   return (
     <div className="App">
       <BrowserRouter>
@@ -32,8 +46,27 @@ function App() {
           <Route path="/login" element={<Login setIsAuthenticated={setIsAuthenticated} />} />
           <Route path="/" element={
             <ProtectedRoute>
+              <HomeRedirect />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
               <Layout>
-                <Dashboard />
+                <AdminDashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/users" element={
+            <ProtectedRoute>
+              <Layout>
+                <UserManagement />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/department/:dept" element={
+            <ProtectedRoute>
+              <Layout>
+                <DepartmentDashboard />
               </Layout>
             </ProtectedRoute>
           } />

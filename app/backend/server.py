@@ -34,6 +34,12 @@ JWT_EXPIRATION_HOURS = 24
 UPLOADS_DIR = ROOT_DIR / 'uploads'
 UPLOADS_DIR.mkdir(exist_ok=True)
 
+# Constants
+ALLOWED_DEPARTMENTS = [
+    "Purchasing", "Sales", "PPIC", "Engineering",
+    "Accounting", "Quality", "Produksi", "HR"
+]
+
 # Models
 class UserCreate(BaseModel):
     email: EmailStr
@@ -206,6 +212,10 @@ async def register(user_data: UserCreate):
     existing_user = await db.users.find_one({"email": user_data.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Validate department
+    if user_data.department and user_data.department not in ALLOWED_DEPARTMENTS:
+        raise HTTPException(status_code=400, detail=f"Invalid department. Allowed: {', '.join(ALLOWED_DEPARTMENTS)}")
     
     user_dict = {
         "id": str(uuid.uuid4()),
@@ -626,9 +636,33 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"message": "Notification marked as read"}
 
-# Create default admin user on startup
+# Admin Routes
+@api_router.get("/admin/users")
+async def get_all_users(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Only admin can view users")
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return users
+
+@api_router.delete("/admin/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Only admin can delete users")
+    if user_id == current_user['id']:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    result = await db.users.delete_one({"id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User deleted successfully"}
+
+@api_router.get("/departments")
+async def get_departments():
+    return {"departments": ALLOWED_DEPARTMENTS}
+
+# Create default users on startup
 @app.on_event("startup")
-async def create_default_admin():
+async def create_default_users():
+    # Create admin
     existing_admin = await db.users.find_one({"email": "admin@company.com"})
     if not existing_admin:
         admin_user = {
@@ -637,10 +671,28 @@ async def create_default_admin():
             "password_hash": hash_password("Admin123!"),
             "name": "Admin User",
             "role": "admin",
+            "department": None,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.users.insert_one(admin_user)
         logging.info("Default admin user created: admin@company.com / Admin123!")
+    
+    # Create department users
+    for dept in ALLOWED_DEPARTMENTS:
+        email = f"{dept.lower()}@company.com"
+        existing = await db.users.find_one({"email": email})
+        if not existing:
+            dept_user = {
+                "id": str(uuid.uuid4()),
+                "email": email,
+                "password_hash": hash_password("Dept123!"),
+                "name": f"{dept} User",
+                "role": "staff",
+                "department": dept,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.users.insert_one(dept_user)
+            logging.info(f"Default {dept} user created: {email} / Dept123!")
 
 app.include_router(api_router)
 
