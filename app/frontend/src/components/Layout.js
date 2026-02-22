@@ -73,10 +73,11 @@ export default function Layout({ children }) {
         { name: 'Users', href: '/admin/users', icon: UsersIcon },
       ];
     }
+    const vendorMenuLabel = deptConfig?.vendorLabel ? `${deptConfig.vendorLabel}s` : 'Vendors';
     return [
       { name: 'Dashboard', href: `/department/${user?.department}`, icon: LayoutDashboard },
       { name: 'Agreements', href: '/agreements', icon: FileText },
-      { name: 'Vendors', href: '/vendors', icon: Building2 },
+      { name: vendorMenuLabel, href: '/vendors', icon: Building2 },
     ];
   };
 

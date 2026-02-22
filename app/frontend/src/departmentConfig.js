@@ -19,6 +19,7 @@ const DEPARTMENTS = {
         bgColor: '#EFF6FF',
         gradient: 'from-blue-600 to-blue-800',
         description: 'Manage purchase orders, vendor contracts, and procurement agreements',
+        vendorLabel: 'Vendor',
     },
     Sales: {
         name: 'Sales',
@@ -28,6 +29,7 @@ const DEPARTMENTS = {
         bgColor: '#ECFDF5',
         gradient: 'from-emerald-600 to-emerald-800',
         description: 'Track sales agreements, customer contracts, and revenue targets',
+        vendorLabel: 'Customer',
     },
     PPIC: {
         name: 'PPIC',
@@ -37,6 +39,7 @@ const DEPARTMENTS = {
         bgColor: '#F5F3FF',
         gradient: 'from-violet-600 to-violet-800',
         description: 'Production planning, inventory control, and supply chain management',
+        vendorLabel: 'Forwarded',
     },
     Engineering: {
         name: 'Engineering',
@@ -46,6 +49,7 @@ const DEPARTMENTS = {
         bgColor: '#FFF7ED',
         gradient: 'from-orange-600 to-orange-800',
         description: 'Technical agreements, engineering contracts, and service level agreements',
+        vendorLabel: 'Vendor',
     },
     Accounting: {
         name: 'Accounting',
@@ -55,6 +59,7 @@ const DEPARTMENTS = {
         bgColor: '#ECFEFF',
         gradient: 'from-cyan-600 to-cyan-800',
         description: 'Financial agreements, audit contracts, and accounting services',
+        vendorLabel: 'Vendor',
     },
     Quality: {
         name: 'Quality',
@@ -64,6 +69,7 @@ const DEPARTMENTS = {
         bgColor: '#FEF2F2',
         gradient: 'from-red-600 to-red-800',
         description: 'Quality assurance agreements, certification contracts, and compliance',
+        vendorLabel: 'Vendor',
     },
     Produksi: {
         name: 'Produksi',
@@ -73,6 +79,7 @@ const DEPARTMENTS = {
         bgColor: '#FEFCE8',
         gradient: 'from-yellow-600 to-yellow-800',
         description: 'Production service agreements, equipment maintenance, and operations',
+        vendorLabel: 'Vendor',
     },
     HR: {
         name: 'HR',
@@ -82,6 +89,7 @@ const DEPARTMENTS = {
         bgColor: '#FDF2F8',
         gradient: 'from-pink-600 to-pink-800',
         description: 'HR contracts, outsourcing agreements, and employee services',
+        vendorLabel: 'Vendor',
     },
 };
 

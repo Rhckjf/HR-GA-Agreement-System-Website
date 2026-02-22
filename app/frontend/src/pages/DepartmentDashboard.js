@@ -84,6 +84,7 @@ export default function DepartmentDashboard() {
     }
 
     const DeptIcon = deptConfig.icon;
+    const vendorLabel = deptConfig.vendorLabel || 'Vendor';
 
     const statCards = [
         {
@@ -298,7 +299,7 @@ export default function DepartmentDashboard() {
                     <CardHeader className="pb-3">
                         <CardTitle className="text-xl font-semibold text-stone-900 flex items-center gap-2">
                             <Building2 size={20} style={{ color: deptConfig.color }} />
-                            Vendor Summary
+                            {vendorLabel} Summary
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -306,13 +307,13 @@ export default function DepartmentDashboard() {
                             <div className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: deptConfig.bgColor }}>
                                 <div>
                                     <p className="text-2xl font-bold text-stone-900">{stats?.total_vendors || 0}</p>
-                                    <p className="text-sm text-stone-600 mt-1">Total Vendors</p>
+                                    <p className="text-sm text-stone-600 mt-1">Total {vendorLabel}s</p>
                                 </div>
                                 <Building2 size={32} style={{ color: deptConfig.color }} strokeWidth={2} />
                             </div>
                             <Link to="/vendors">
                                 <Button className="w-full bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 h-10 rounded-md font-medium transition-all">
-                                    Manage Vendors
+                                    Manage {vendorLabel}s
                                 </Button>
                             </Link>
                         </div>
