@@ -1,52 +1,45 @@
 # HRGA Agreement System
 
-This project is a web application for managing HR and GA agreements, featuring a Python FastAPI backend and a React frontend.
+This project is a web application for managing HR and GA agreements, featuring a Node.js Express backend and a React frontend.
 
 ## Prerequisites
 
-- **Python**: 3.8 or higher
 - **Node.js**: 16 or higher
-- **MongoDB**: A running MongoDB instance (local or atlas)
+- **MongoDB**: A running MongoDB instance (local or Atlas)
 
 ## Installation & Running
 
 ### Backend (API)
 
-The backend is built with FastAPI.
+The backend is built with Express and Mongoose.
 
 1.  Navigate to the backend directory:
     ```bash
     cd app/backend
     ```
 
-2.  (Optional) Create and activate a virtual environment:
+2.  Install dependencies:
     ```bash
-    python -m venv venv
-    # Windows
-    .\venv\Scripts\activate
-    # macOS/Linux
-    source venv/bin/activate
+    npm install
     ```
 
-3.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  Configure environment variables:
+3.  Configure environment variables:
     Create a `.env` file in `app/backend` with the following keys:
     ```env
-    MONGO_URL=mongodb://localhost:27017 # or your MongoDB URL
-    DB_NAME=hrga_db # or your database name
-    JWT_SECRET=your_secret_key # optional, default exists for dev
-    CORS_ORIGINS=http://localhost:3000 # Allow frontend origin
+    PORT=5000
+    MONGODB_URI=mongodb://localhost:27017/hrga_db
+    JWT_SECRET=your_jwt_secret
     ```
 
-5.  Run the server:
+4.  Run the server:
     ```bash
-    uvicorn server:app --reload
+    # Development mode
+    npm run dev
+
+    # Production mode
+    npm start
     ```
-    The API will be available at `http://localhost:8000`. API docs at `http://localhost:8000/docs`.
+    The API will be available at `http://localhost:5000`.
 
 ### Frontend (UI)
 
@@ -60,23 +53,19 @@ The frontend is built with React.
 2.  Install dependencies:
     ```bash
     npm install
-    # or
-    yarn install
     ```
 
 3.  Run the development server:
     ```bash
     npm start
-    # or
-    yarn start
     ```
     The application will open at `http://localhost:3000`.
 
 ## Project Structure
 
-- `app/backend`: FastAPI application code.
-  - `server.py`: Main entry point and application logic.
-  - `requirements.txt`: Python dependencies.
+- `app/backend`: Express application code.
+  - `src/`: Source code (controllers, models, routes).
+  - `package.json`: Node dependencies and scripts.
 - `app/frontend`: React application code.
   - `src/`: Source code.
   - `package.json`: Node dependencies and scripts.
