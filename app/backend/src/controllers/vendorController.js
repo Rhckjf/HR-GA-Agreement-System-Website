@@ -9,7 +9,8 @@ const getVendors = async (req, res) => {
     let query = {};
 
     if (type) {
-        query.type = type;
+        const typesArray = type.split(',');
+        query.type = { $in: typesArray };
     }
 
     try {
@@ -24,6 +25,9 @@ const getVendors = async (req, res) => {
 // @route   POST /api/vendors
 // @access  Private
 const createVendor = async (req, res) => {
+    if (req.user.role === 'admin') {
+        return res.status(403).json({ detail: 'Admin cannot create vendors' });
+    }
     const { name, type, contact_person, email, phone, address } = req.body;
 
     try {
@@ -48,6 +52,9 @@ const createVendor = async (req, res) => {
 // @route   PUT /api/vendors/:id
 // @access  Private
 const updateVendor = async (req, res) => {
+    if (req.user.role === 'admin') {
+        return res.status(403).json({ detail: 'Admin cannot update vendors' });
+    }
     try {
         const vendor = await Vendor.findOneAndUpdate(
             { id: req.params.id },
@@ -69,6 +76,9 @@ const updateVendor = async (req, res) => {
 // @route   DELETE /api/vendors/:id
 // @access  Private
 const deleteVendor = async (req, res) => {
+    if (req.user.role === 'admin') {
+        return res.status(403).json({ detail: 'Admin cannot delete vendors' });
+    }
     try {
         const vendor = await Vendor.findOneAndDelete({ id: req.params.id });
 

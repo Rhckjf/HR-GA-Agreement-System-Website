@@ -39,7 +39,7 @@ const DEPARTMENTS = {
         bgColor: '#F5F3FF',
         gradient: 'from-violet-600 to-violet-800',
         description: 'Production planning, inventory control, and supply chain management',
-        vendorLabel: 'Forwarded',
+        vendorLabel: 'Barang, Jasa & Forwarder',
     },
     Engineering: {
         name: 'Engineering',

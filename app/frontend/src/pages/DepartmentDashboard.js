@@ -51,8 +51,8 @@ export default function DepartmentDashboard() {
             const headers = { Authorization: `Bearer ${token}` };
 
             const [statsRes, agreementsRes] = await Promise.all([
-                axios.get(`${API}/dashboard/stats`, { headers }),
-                axios.get(`${API}/agreements?status=expiring_soon`, { headers })
+                axios.get(`${API}/dashboard/stats?department=${dept}`, { headers }),
+                axios.get(`${API}/agreements?status=expiring_soon&department=${dept}`, { headers })
             ]);
 
             setStats(statsRes.data);
@@ -180,7 +180,7 @@ export default function DepartmentDashboard() {
                         New Agreement
                     </Button>
                 </Link>
-                <Link to="/agreements">
+                <Link to={user.role === 'admin' ? `/agreements?department=${dept}` : '/agreements'}>
                     <Button variant="outline" className="gap-2 h-11 px-6 rounded-md font-medium">
                         <FileText size={18} />
                         View All Agreements
@@ -272,8 +272,8 @@ export default function DepartmentDashboard() {
                             <div className="space-y-3">
                                 {expiringAgreements.map((agreement) => (
                                     <Link
-                                        key={agreement.id}
-                                        to={`/agreements/${agreement.id}`}
+                                        key={agreement._id || agreement.id}
+                                        to={`/agreements/${agreement._id || agreement.id}`}
                                         className="block p-3 rounded-md border border-stone-200 hover:border-amber-400 hover:bg-amber-50 transition-all"
                                     >
                                         <div className="flex justify-between items-start">

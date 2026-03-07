@@ -69,7 +69,7 @@ export default function Layout({ children }) {
       return [
         { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
         { name: 'Agreements', href: '/agreements', icon: FileText },
-        { name: 'Vendors', href: '/vendors', icon: Building2 },
+        { name: 'Master Data', href: '/vendors', icon: Building2 },
         { name: 'Users', href: '/admin/users', icon: UsersIcon },
       ];
     }

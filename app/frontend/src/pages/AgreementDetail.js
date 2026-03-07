@@ -184,14 +184,16 @@ export default function AgreementDetail() {
               </span>
             </div>
           </div>
-          <Button
-            onClick={() => navigate(`/agreements/edit/${id}`)}
-            className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
-            data-testid="edit-agreement-button"
-          >
-            <Edit size={18} />
-            Edit Agreement
-          </Button>
+          {currentUser?.role !== 'admin' && (
+            <Button
+              onClick={() => navigate(`/agreements/edit/${id}`)}
+              className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
+              data-testid="edit-agreement-button"
+            >
+              <Edit size={18} />
+              Edit Agreement
+            </Button>
+          )}
         </div>
       </div>
 
@@ -217,6 +219,18 @@ export default function AgreementDetail() {
                   <span>Category</span>
                 </div>
                 <p className="text-base font-medium text-stone-900">{agreement.category}</p>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-sm text-stone-500 mb-2">
+                  <Building2 size={16} />
+                  <span>Origin Department</span>
+                </div>
+                <p className="text-base font-medium text-stone-900">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-800">
+                    {agreement.origin_department || 'Unknown'}
+                  </span>
+                </p>
               </div>
 
               <div>
@@ -366,7 +380,7 @@ export default function AgreementDetail() {
             <CardContent className="space-y-3">
               <div>
                 <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Agreement ID</p>
-                <p className="text-sm font-mono text-stone-700">{agreement.id.slice(0, 8)}...</p>
+                <p className="text-sm font-mono text-stone-700">{(agreement._id || agreement.id || '').slice(0, 8)}...</p>
               </div>
               <div>
                 <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Created At</p>

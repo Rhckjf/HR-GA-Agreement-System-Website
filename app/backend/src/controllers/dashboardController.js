@@ -7,9 +7,15 @@ const { calculateAgreementStatus } = require('../utils/status');
 // @access  Private
 const getDashboardStats = async (req, res) => {
     try {
+        const { department } = req.query;
         let query = {};
+
+        // If not admin, force their own department
         if (req.user.role !== 'admin' && req.user.department) {
             query.department = req.user.department;
+        } else if (department) {
+            // Admin requesting a specific department
+            query.department = department;
         }
 
         const allAgreements = await Agreement.find(query).lean();
@@ -59,7 +65,21 @@ const getDashboardStats = async (req, res) => {
             }
         });
 
-        const totalVendors = await Vendor.countDocuments({});
+        // Determine vendor filter based on department
+        let vendorQuery = {};
+        const getVendorTypeByDept = (d) => {
+            if (d === 'Sales') return ['customer'];
+            if (d === 'Purchasing') return ['vendor'];
+            if (d === 'PPIC') return ['barang', 'jasa', 'forwarder'];
+            return [];
+        };
+
+        const currentDept = query.department;
+        if (currentDept) {
+            vendorQuery.type = { $in: getVendorTypeByDept(currentDept) };
+        }
+
+        const totalVendors = await Vendor.countDocuments(vendorQuery);
 
         res.json({
             total_agreements: allAgreements.length,

@@ -12,8 +12,11 @@ import {
   Calendar,
   ChevronDown,
   X,
-  Check
+  Check,
+  Clock,
+  Download as DownloadIcon
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,10 +57,15 @@ export default function AgreementsList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [approvalFilter, setApprovalFilter] = useState(searchParams.get('approval_status') || 'all');
+  const [departmentFilter, setDepartmentFilter] = useState(searchParams.get('department') || 'all');
   const [selectedVendors, setSelectedVendors] = useState([]);
   const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
   const vendorDropdownRef = useRef(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = user?.role === 'admin';
 
   const categories = ['Service Agreement', 'Vendor Contract', 'NDA', 'Partnership', 'Lease Agreement', 'Other'];
 
@@ -69,7 +77,7 @@ export default function AgreementsList() {
 
   useEffect(() => {
     filterAgreements();
-  }, [agreements, searchTerm, categoryFilter, statusFilter, selectedVendors]);
+  }, [agreements, searchTerm, categoryFilter, statusFilter, approvalFilter, selectedVendors]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -84,7 +92,14 @@ export default function AgreementsList() {
   const fetchAgreements = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API}/agreements`, {
+      let url = `${API}/agreements`;
+
+      // If a department filter was passed in the URL, send it to the backend
+      if (departmentFilter && departmentFilter !== 'all') {
+        url += `?department=${departmentFilter}`;
+      }
+
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAgreements(response.data);
@@ -125,11 +140,42 @@ export default function AgreementsList() {
       filtered = filtered.filter(a => a.status === statusFilter);
     }
 
+    if (approvalFilter !== 'all') {
+      filtered = filtered.filter(a => a.approval_status === approvalFilter);
+    }
+
     if (selectedVendors.length > 0) {
       filtered = filtered.filter(a => selectedVendors.includes(a.vendor_name));
     }
 
     setFilteredAgreements(filtered);
+  };
+
+  const exportToExcel = () => {
+    if (filteredAgreements.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+
+    const exportData = filteredAgreements.map(a => ({
+      'Title / Description': a.title,
+      'Vendor / Customer Name': a.vendor_name || 'N/A',
+      'Category': a.category,
+      'Origin Department': a.origin_department || 'N/A',
+      'Cycle Year': a.cycle_year || 'N/A',
+      'Start Date': new Date(a.start_date).toLocaleDateString(),
+      'Expiry Date': new Date(a.expiry_date).toLocaleDateString(),
+      'Status': a.status.replace('_', ' ').toUpperCase(),
+      'Approval Status': a.approval_status ? a.approval_status.toUpperCase() : 'PENDING'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Agreements');
+
+    // Generate Excel file and trigger download
+    XLSX.writeFile(workbook, `Agreements_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Data exported successfully');
   };
 
   const handleDelete = async () => {
@@ -172,20 +218,34 @@ export default function AgreementsList() {
           <h1 className="text-4xl font-bold tracking-tight text-stone-900">Agreements</h1>
           <p className="text-base text-stone-600 mt-2">Manage all your agreements in one place</p>
         </div>
-        <Link to="/agreements/new">
+        <div className="flex items-center gap-3">
           <Button
-            className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
-            data-testid="add-new-agreement-button"
+            onClick={exportToExcel}
+            variant="outline"
+            className="gap-2 h-11 px-4 rounded-md font-medium text-stone-700 bg-white hover:bg-stone-50 transition-all border-stone-200"
+            title="Export filtered data to Excel"
           >
-            <Plus size={18} />
-            Add Agreement
+            <DownloadIcon size={18} />
+            Export to Excel
           </Button>
-        </Link>
+
+          {!isAdmin && (
+            <Link to="/agreements/new">
+              <Button
+                className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
+                data-testid="add-new-agreement-button"
+              >
+                <Plus size={18} />
+                Add Agreement
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-stone-200 p-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-1 gap-4 ${isAdmin ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
             <Input
@@ -286,6 +346,33 @@ export default function AgreementsList() {
               <SelectItem value="expired">Expired</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Approval Status Filter — admin only */}
+          {isAdmin && (
+            <Select value={approvalFilter} onValueChange={setApprovalFilter}>
+              <SelectTrigger className="h-10" data-testid="approval-filter">
+                <SelectValue placeholder="All Approval" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All Approval</SelectItem>
+                <SelectItem value="pending">
+                  <span className="flex items-center gap-2">
+                    <Clock size={13} className="text-amber-500" /> Pending
+                  </span>
+                </SelectItem>
+                <SelectItem value="approved">
+                  <span className="flex items-center gap-2">
+                    <Check size={13} className="text-green-600" /> Approved
+                  </span>
+                </SelectItem>
+                <SelectItem value="rejected">
+                  <span className="flex items-center gap-2">
+                    <X size={13} className="text-red-500" /> Rejected
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
@@ -297,10 +384,14 @@ export default function AgreementsList() {
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Title</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Vendor</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Category</TableHead>
+              <TableHead className="text-xs uppercase font-semibold text-stone-500">Origin</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Cycle Year</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Start Date</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Expiry Date</TableHead>
               <TableHead className="text-xs uppercase font-semibold text-stone-500">Status</TableHead>
+              {isAdmin && (
+                <TableHead className="text-xs uppercase font-semibold text-stone-500">Approval</TableHead>
+              )}
               <TableHead className="text-xs uppercase font-semibold text-stone-500 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -314,13 +405,18 @@ export default function AgreementsList() {
             ) : (
               filteredAgreements.map((agreement) => (
                 <TableRow
-                  key={agreement.id}
-                  className="border-b border-stone-100 hover:bg-stone-50 transition-colors"
-                  data-testid={`agreement-row-${agreement.id}`}
+                  key={agreement._id || agreement.id}
+                  className="hover:bg-stone-50 cursor-pointer transition-colors"
+                  data-testid={`agreement-row-${agreement._id || agreement.id}`}
                 >
                   <TableCell className="font-medium text-stone-900">{agreement.title}</TableCell>
                   <TableCell className="text-stone-600">{agreement.vendor_name || 'N/A'}</TableCell>
                   <TableCell className="text-stone-600">{agreement.category}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-800">
+                      {agreement.origin_department || 'Unknown'}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-stone-600">
                     {agreement.cycle_year || new Date(agreement.start_date).getFullYear()}
                   </TableCell>
@@ -331,37 +427,60 @@ export default function AgreementsList() {
                     {new Date(agreement.expiry_date).toLocaleDateString()}
                   </TableCell>
                   <TableCell>{getStatusBadge(agreement.status)}</TableCell>
+                  {isAdmin && (
+                    <TableCell>
+                      {agreement.approval_status === 'approved' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                          <Check size={11} /> Approved
+                        </span>
+                      )}
+                      {agreement.approval_status === 'pending' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                          <Clock size={11} /> Pending
+                        </span>
+                      )}
+                      {agreement.approval_status === 'rejected' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                          <X size={11} /> Rejected
+                        </span>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="flex items-center justify-end gap-2">
-                      <Link to={`/agreements/${agreement.id}`}>
+                      <Link to={`/agreements/${agreement._id || agreement.id}`}>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-stone-600 hover:text-[#134E4A]"
-                          data-testid={`view-agreement-${agreement.id}`}
+                          data-testid={`view-agreement-${agreement._id || agreement.id}`}
                         >
                           <Eye size={16} />
                         </Button>
                       </Link>
-                      <Link to={`/agreements/edit/${agreement.id}`}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-stone-600 hover:text-[#134E4A]"
-                          data-testid={`edit-agreement-${agreement.id}`}
-                        >
-                          <Edit size={16} />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-red-600 hover:text-red-700"
-                        onClick={() => setDeleteDialog({ open: true, id: agreement.id })}
-                        data-testid={`delete-agreement-${agreement.id}`}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
+                      {!isAdmin && (
+                        <>
+                          <Link to={`/agreements/edit/${agreement._id || agreement.id}`}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-stone-600 hover:text-[#134E4A]"
+                              data-testid={`edit-agreement-${agreement._id || agreement.id}`}
+                            >
+                              <Edit size={16} />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:text-red-700"
+                            onClick={() => setDeleteDialog({ open: true, id: agreement._id || agreement.id })}
+                            data-testid={`delete-agreement-${agreement._id || agreement.id}`}
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

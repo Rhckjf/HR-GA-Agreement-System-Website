@@ -30,6 +30,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('1m');
 
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = user?.role === 'admin';
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -128,15 +131,17 @@ export default function Dashboard() {
           <h1 className="text-4xl font-bold tracking-tight text-stone-900">Dashboard</h1>
           <p className="text-base text-stone-600 mt-2">Overview of your agreement management system</p>
         </div>
-        <Link to="/agreements/new">
-          <Button
-            className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
-            data-testid="add-agreement-button"
-          >
-            <Plus size={18} />
-            New Agreement
-          </Button>
-        </Link>
+        {!isAdmin && (
+          <Link to="/agreements/new">
+            <Button
+              className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-11 px-6 rounded-md font-medium transition-all active:scale-95"
+              data-testid="add-agreement-button"
+            >
+              <Plus size={18} />
+              New Agreement
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -240,10 +245,10 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {expiringAgreements.map((agreement) => (
                   <Link
-                    key={agreement.id}
-                    to={`/agreements/${agreement.id}`}
+                    key={agreement._id || agreement.id}
+                    to={`/agreements/${agreement._id || agreement.id}`}
                     className="block p-3 rounded-md border border-stone-200 hover:border-[#D97706] hover:bg-amber-50 transition-all"
-                    data-testid={`expiring-agreement-${agreement.id}`}
+                    data-testid={`expiring-agreement-${agreement._id || agreement.id}`}
                   >
                     <div className="flex justify-between items-start">
                       <div>

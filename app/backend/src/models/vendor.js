@@ -14,7 +14,7 @@ const vendorSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['barang', 'jasa', 'customer'], // Based on Python code, 'barang' is default there but it seemed to allow others. The Pydantic model had 'barang' default.
+        enum: ['barang', 'jasa', 'customer', 'vendor', 'forwarder'],
         default: 'barang'
     },
     contact_person: {

@@ -2,25 +2,35 @@ const Agreement = require('../models/agreement');
 const Vendor = require('../models/vendor');
 const Notification = require('../models/notification');
 const { calculateAgreementStatus } = require('../utils/status');
+const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
+
+const getIdQuery = (idParam) => {
+    return mongoose.Types.ObjectId.isValid(idParam)
+        ? { $or: [{ _id: idParam }, { id: idParam }] }
+        : { id: idParam };
+};
 
 // @desc    Get all agreements
 // @route   GET /api/agreements
 // @access  Private
 const getAgreements = async (req, res) => {
     try {
-        const { category, status, search, cycle_year } = req.query;
+        const { category, status, approval_status, search, cycle_year, department } = req.query;
         let query = {};
 
         // Department Scoping
         if (req.user.role !== 'admin' && req.user.department) {
             query.department = req.user.department;
+        } else if (department) {
+            query.department = department; // Allow admin to filter by department
         }
 
         if (category) query.category = category;
         if (cycle_year) query.cycle_year = parseInt(cycle_year);
+        if (approval_status) query.approval_status = approval_status;
 
         if (search) {
             query.$or = [
@@ -53,7 +63,7 @@ const getAgreements = async (req, res) => {
 // @access  Private
 const getAgreement = async (req, res) => {
     try {
-        const agreement = await Agreement.findOne({ id: req.params.id }).lean();
+        const agreement = await Agreement.findOne(getIdQuery(req.params.id)).lean();
 
         if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
@@ -85,6 +95,9 @@ const getAgreement = async (req, res) => {
 // @route   POST /api/agreements
 // @access  Private
 const createAgreement = async (req, res) => {
+    if (req.user.role === 'admin') {
+        return res.status(403).json({ detail: 'Admin cannot create agreements' });
+    }
     try {
         const {
             title,
@@ -96,7 +109,7 @@ const createAgreement = async (req, res) => {
             description
         } = req.body;
 
-        const vendor = await Vendor.findOne({ id: vendor_id });
+        const vendor = await Vendor.findOne(getIdQuery(vendor_id));
         if (!vendor) {
             return res.status(404).json({ detail: 'Vendor not found' });
         }
@@ -116,6 +129,7 @@ const createAgreement = async (req, res) => {
             status,
             approval_status: 'pending',
             department: req.user.department,
+            origin_department: req.user.department,
             created_by: req.user.id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -144,8 +158,11 @@ const createAgreement = async (req, res) => {
 // @route   PUT /api/agreements/:id
 // @access  Private
 const updateAgreement = async (req, res) => {
+    if (req.user.role === 'admin') {
+        return res.status(403).json({ detail: 'Admin cannot update agreements' });
+    }
     try {
-        let agreement = await Agreement.findOne({ id: req.params.id });
+        let agreement = await Agreement.findOne(getIdQuery(req.params.id));
         if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
         } // Check permission? matching Python: no check.
@@ -154,7 +171,7 @@ const updateAgreement = async (req, res) => {
 
         // If vendor_id passes, update vendor_name
         if (updateData.vendor_id) {
-            const vendor = await Vendor.findOne({ id: updateData.vendor_id });
+            const vendor = await Vendor.findOne(getIdQuery(updateData.vendor_id));
             if (vendor) {
                 updateData.vendor_name = vendor.name;
             }
@@ -163,7 +180,7 @@ const updateAgreement = async (req, res) => {
         updateData.updated_at = new Date().toISOString();
 
         agreement = await Agreement.findOneAndUpdate(
-            { id: req.params.id },
+            getIdQuery(req.params.id),
             { $set: updateData },
             { new: true }
         ).lean();
@@ -179,8 +196,11 @@ const updateAgreement = async (req, res) => {
 // @route   DELETE /api/agreements/:id
 // @access  Private
 const deleteAgreement = async (req, res) => {
+    if (req.user.role === 'admin') {
+        return res.status(403).json({ detail: 'Admin cannot delete agreements' });
+    }
     try {
-        const result = await Agreement.findOneAndDelete({ id: req.params.id });
+        const result = await Agreement.findOneAndDelete(getIdQuery(req.params.id));
         if (!result) {
             return res.status(404).json({ detail: 'Agreement not found' });
         }
@@ -195,7 +215,7 @@ const deleteAgreement = async (req, res) => {
 // @access  Private
 const uploadAgreementFile = async (req, res) => {
     try {
-        const agreement = await Agreement.findOne({ id: req.params.id });
+        const agreement = await Agreement.findOne(getIdQuery(req.params.id));
         if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
         }
@@ -208,7 +228,7 @@ const uploadAgreementFile = async (req, res) => {
         const filePath = req.file.path;
 
         await Agreement.updateOne(
-            { id: req.params.id },
+            getIdQuery(req.params.id),
             { $set: { file_path: filePath } }
         );
 
@@ -223,7 +243,7 @@ const uploadAgreementFile = async (req, res) => {
 // @access  Private
 const downloadAgreement = async (req, res) => {
     try {
-        const agreement = await Agreement.findOne({ id: req.params.id });
+        const agreement = await Agreement.findOne(getIdQuery(req.params.id));
         if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
         }
@@ -252,7 +272,7 @@ const downloadAgreement = async (req, res) => {
 // @access  Private
 const previewAgreement = async (req, res) => {
     try {
-        const agreement = await Agreement.findOne({ id: req.params.id });
+        const agreement = await Agreement.findOne(getIdQuery(req.params.id));
         if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
         }
@@ -286,10 +306,11 @@ const approveAgreement = async (req, res) => {
         }
 
         const agreement = await Agreement.findOneAndUpdate(
-            { id: req.params.id },
+            getIdQuery(req.params.id),
             {
                 $set: {
                     approval_status: 'approved',
+                    department: 'HR', // Route to HR upon approval
                     approved_by: req.user.name,
                     approved_at: new Date().toISOString(),
                     rejection_reason: null
@@ -300,6 +321,20 @@ const approveAgreement = async (req, res) => {
 
         if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
+        }
+
+        // Notification
+        if (agreement.created_by) {
+            await Notification.create({
+                id: uuidv4(),
+                user_id: agreement.created_by,
+                agreement_id: agreement.id,
+                agreement_title: agreement.title,
+                message: `Agreement '${agreement.title}' was approved and moved to HR.`,
+                type: 'approval',
+                is_read: false,
+                created_at: new Date().toISOString()
+            });
         }
 
         agreement.status = calculateAgreementStatus(agreement.expiry_date);
@@ -321,7 +356,7 @@ const rejectAgreement = async (req, res) => {
         const { reason } = req.body;
 
         const agreement = await Agreement.findOneAndUpdate(
-            { id: req.params.id },
+            getIdQuery(req.params.id),
             {
                 $set: {
                     approval_status: 'rejected',

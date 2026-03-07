@@ -68,6 +68,10 @@ const agreementSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    origin_department: {
+        type: String,
+        default: null
+    },
     created_by: {
         type: String,
         required: true

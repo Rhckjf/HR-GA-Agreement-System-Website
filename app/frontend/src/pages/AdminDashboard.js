@@ -12,6 +12,7 @@ import {
     PieChart as PieChartIcon,
     Users as UsersIcon,
     ArrowRight,
+    Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +31,7 @@ export default function AdminDashboard() {
     const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [expiringAgreements, setExpiringAgreements] = useState([]);
+    const [pendingAgreements, setPendingAgreements] = useState([]);
     const [loading, setLoading] = useState(true);
     const [timeframe, setTimeframe] = useState('1m');
     const [userCount, setUserCount] = useState(0);
@@ -49,15 +51,17 @@ export default function AdminDashboard() {
             const token = localStorage.getItem('token');
             const headers = { Authorization: `Bearer ${token}` };
 
-            const [statsRes, agreementsRes, usersRes] = await Promise.all([
+            const [statsRes, agreementsRes, usersRes, pendingRes] = await Promise.all([
                 axios.get(`${API}/dashboard/stats`, { headers }),
                 axios.get(`${API}/agreements?status=expiring_soon`, { headers }),
                 axios.get(`${API}/admin/users`, { headers }),
+                axios.get(`${API}/agreements?approval_status=pending`, { headers }),
             ]);
 
             setStats(statsRes.data);
             setExpiringAgreements(agreementsRes.data.slice(0, 5));
             setUserCount(usersRes.data.length);
+            setPendingAgreements(pendingRes.data.filter(a => a.approval_status === 'pending'));
         } catch (error) {
             console.error('Failed to fetch dashboard data:', error);
         } finally {
@@ -146,12 +150,7 @@ export default function AdminDashboard() {
                         <p className="text-white/80 mt-1">Complete overview of all departments and system management</p>
                     </div>
                     <div className="flex gap-3">
-                        <Link to="/agreements/new">
-                            <Button className="gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm">
-                                <Plus size={18} />
-                                New Agreement
-                            </Button>
-                        </Link>
+
                         <Link to="/admin/users">
                             <Button className="gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm">
                                 <UsersIcon size={18} />
@@ -215,6 +214,59 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
+            {/* Pending Approval Section */}
+            <Card className="bg-white border border-stone-200 rounded-lg shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="text-xl font-semibold text-stone-900 flex items-center gap-2">
+                            <Clock size={20} className="text-amber-500" />
+                            Menunggu Persetujuan
+                            {pendingAgreements.length > 0 && (
+                                <span className="ml-2 inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                                    {pendingAgreements.length}
+                                </span>
+                            )}
+                        </CardTitle>
+                        <Link to="/agreements">
+                            <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900 gap-1 text-xs">
+                                Lihat Semua <ArrowRight size={14} />
+                            </Button>
+                        </Link>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {pendingAgreements.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-stone-400">
+                            <CheckCircle size={36} className="mb-2 text-green-400" />
+                            <p className="text-sm font-medium">Tidak ada agreement yang menunggu persetujuan</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {pendingAgreements.map((agreement) => (
+                                <Link
+                                    key={agreement._id || agreement.id}
+                                    to={`/agreements/${agreement._id || agreement.id}`}
+                                    className="block p-4 rounded-lg border border-amber-200 bg-amber-50 hover:border-amber-400 hover:bg-amber-100 transition-all"
+                                >
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-sm text-stone-900 truncate">{agreement.title}</p>
+                                            <p className="text-xs text-stone-500 mt-0.5">{agreement.vendor_name || '-'}</p>
+                                            <p className="text-xs text-stone-400 mt-1">
+                                                Dibuat: {new Date(agreement.created_at).toLocaleDateString('id-ID')}
+                                            </p>
+                                        </div>
+                                        <span className="shrink-0 text-xs font-semibold text-amber-700 bg-amber-200 px-2 py-1 rounded-full flex items-center gap-1">
+                                            <Clock size={10} /> Pending
+                                        </span>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
             {/* Charts and Lists */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Pie Chart */}
@@ -272,8 +324,8 @@ export default function AdminDashboard() {
                             <div className="space-y-3">
                                 {expiringAgreements.map((agreement) => (
                                     <Link
-                                        key={agreement.id}
-                                        to={`/agreements/${agreement.id}`}
+                                        key={agreement._id || agreement.id}
+                                        to={`/agreements/${agreement._id || agreement.id}`}
                                         className="block p-3 rounded-md border border-stone-200 hover:border-amber-400 hover:bg-amber-50 transition-all"
                                     >
                                         <div className="flex justify-between items-start">

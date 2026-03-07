@@ -12,9 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 
 import { API } from '../config';
 
@@ -22,6 +30,17 @@ export default function AgreementForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = !!id;
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const department = user?.department || '';
+  const isAdmin = user?.role === 'admin';
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      toast.error('Admin users cannot create or edit agreements');
+      navigate('/agreements');
+    }
+  }, [user, navigate]);
 
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -36,7 +55,53 @@ export default function AgreementForm() {
     description: ''
   });
 
+  // Quick Add state
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [quickAddData, setQuickAddData] = useState({
+    name: '', contact_person: '', email: '', phone: '', address: '',
+    type: department === 'Sales' ? 'customer' : department === 'Purchasing' ? 'vendor' : 'barang'
+  });
+
   const categories = ['Service Agreement', 'Vendor Contract', 'NDA', 'Partnership', 'Lease Agreement', 'Other'];
+
+  // Get the default type for quick-adding based on department
+  const getDefaultType = () => {
+    switch (department) {
+      case 'Sales': return 'customer';
+      case 'Purchasing': return 'vendor';
+      case 'PPIC': return 'barang';
+      default: return 'vendor';
+    }
+  };
+
+  const handleQuickAdd = async (e) => {
+    e.preventDefault();
+    setQuickAddLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API}/vendors`, {
+        ...quickAddData,
+        // type is already embedded in quickAddData
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const newVendor = response.data;
+      // Refresh vendor list & auto-select the new one
+      await fetchVendors();
+      setFormData(prev => ({ ...prev, vendor_id: newVendor.id }));
+      setQuickAddData({
+        name: '', contact_person: '', email: '', phone: '', address: '',
+        type: department === 'Sales' ? 'customer' : department === 'Purchasing' ? 'vendor' : 'barang'
+      });
+      setQuickAddOpen(false);
+      toast.success(`${quickAddData.name} berhasil ditambahkan dan dipilih!`);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal menambahkan data');
+    } finally {
+      setQuickAddLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchVendors();
@@ -45,10 +110,28 @@ export default function AgreementForm() {
     }
   }, [id]);
 
+  // department and isAdmin are declared above
+
+  // Determine allowed types based on department (same as VendorsList)
+  const getAllowedTypes = () => {
+    if (isAdmin) return null; // null means fetch all
+    switch (department) {
+      case 'Sales': return ['customer'];
+      case 'Purchasing': return ['vendor'];
+      case 'PPIC': return ['barang', 'jasa', 'forwarder'];
+      default: return null;
+    }
+  };
+
   const fetchVendors = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API}/vendors`, {
+      const allowedTypes = getAllowedTypes();
+      let url = `${API}/vendors`;
+      if (allowedTypes) {
+        url += `?type=${allowedTypes.join(',')}`;
+      }
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setVendors(response.data);
@@ -165,19 +248,39 @@ export default function AgreementForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="vendor" className="text-sm font-medium text-stone-700">Vendor *</Label>
+                <Label htmlFor="vendor" className="text-sm font-medium text-stone-700">
+                  {department === 'Sales' ? 'Customer' :
+                    department === 'PPIC' ? 'Barang / Jasa / Forwarder' : 'Vendor'} *
+                </Label>
                 <Select
                   value={formData.vendor_id}
-                  onValueChange={(value) => setFormData({ ...formData, vendor_id: value })}
+                  onValueChange={(value) => {
+                    if (value === '__quick_add__') {
+                      setQuickAddOpen(true);
+                    } else {
+                      setFormData({ ...formData, vendor_id: value });
+                    }
+                  }}
                   required
                 >
                   <SelectTrigger className="h-10" data-testid="vendor-select">
-                    <SelectValue placeholder="Select vendor" />
+                    <SelectValue placeholder={`Pilih ${department === 'Sales' ? 'customer' : 'vendor'}`} />
                   </SelectTrigger>
                   <SelectContent className="bg-white">
                     {vendors.map(vendor => (
                       <SelectItem key={vendor.id} value={vendor.id}>{vendor.name}</SelectItem>
                     ))}
+                    <div className="border-t border-stone-100 mt-1 pt-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-[#134E4A] font-medium hover:bg-stone-50 rounded-sm cursor-pointer"
+                        onMouseDown={(e) => { e.preventDefault(); setQuickAddOpen(true); }}
+                        data-testid="quick-add-vendor-button"
+                      >
+                        <Plus size={14} />
+                        Tambah {department === 'Sales' ? 'Customer' : department === 'PPIC' ? 'Data' : 'Vendor'} Baru...
+                      </button>
+                    </div>
                   </SelectContent>
                 </Select>
               </div>
@@ -295,6 +398,109 @@ export default function AgreementForm() {
           </form>
         </CardContent>
       </Card>
-    </div >
+
+      {/* Quick Add Dialog */}
+      <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
+        <DialogContent className="bg-white max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Tambah {department === 'Sales' ? 'Customer' : department === 'PPIC' ? 'Barang/Jasa/Forwarder' : 'Vendor'} Baru
+            </DialogTitle>
+            <DialogDescription>
+              Data yang dibuat akan langsung dipilih di form Agreement ini.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleQuickAdd}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-stone-700">Nama *</Label>
+                <Input
+                  value={quickAddData.name}
+                  onChange={(e) => setQuickAddData({ ...quickAddData, name: e.target.value })}
+                  placeholder="Masukkan nama"
+                  required
+                  className="h-10"
+                />
+              </div>
+              {/* Tipe selector - only shown for PPIC since they have 3 types */}
+              {department === 'PPIC' && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-stone-700">Tipe *</Label>
+                  <Select
+                    value={quickAddData.type}
+                    onValueChange={(val) => setQuickAddData({ ...quickAddData, type: val })}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Pilih tipe" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="barang">Barang</SelectItem>
+                      <SelectItem value="jasa">Jasa</SelectItem>
+                      <SelectItem value="forwarder">Forwarder</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-stone-700">Contact Person</Label>
+                <Input
+                  value={quickAddData.contact_person}
+                  onChange={(e) => setQuickAddData({ ...quickAddData, contact_person: e.target.value })}
+                  placeholder="Nama contact person"
+                  className="h-10"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-stone-700">Email</Label>
+                  <Input
+                    type="email"
+                    value={quickAddData.email}
+                    onChange={(e) => setQuickAddData({ ...quickAddData, email: e.target.value })}
+                    placeholder="email@contoh.com"
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-stone-700">No. Telepon</Label>
+                  <Input
+                    value={quickAddData.phone}
+                    onChange={(e) => setQuickAddData({ ...quickAddData, phone: e.target.value })}
+                    placeholder="08xxxxxxxxx"
+                    className="h-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-stone-700">Alamat</Label>
+                <Input
+                  value={quickAddData.address}
+                  onChange={(e) => setQuickAddData({ ...quickAddData, address: e.target.value })}
+                  placeholder="Masukkan alamat"
+                  className="h-10"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setQuickAddOpen(false)}
+                className="border-stone-200"
+              >
+                Batal
+              </Button>
+              <Button
+                type="submit"
+                disabled={quickAddLoading}
+                className="bg-[#134E4A] hover:bg-[#115E59] text-white"
+              >
+                {quickAddLoading ? 'Menyimpan...' : 'Simpan & Pilih'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
