@@ -4,13 +4,6 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Eye, EyeOff, FileText } from 'lucide-react';
 import { getAllDepartments } from '@/departmentConfig';
@@ -20,13 +13,10 @@ const departments = getAllDepartments();
 
 export default function Login({ setIsAuthenticated }) {
   const navigate = useNavigate();
-  const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    name: '',
-    department: '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -35,16 +25,14 @@ export default function Login({ setIsAuthenticated }) {
     setLoading(true);
 
     try {
-      const endpoint = isLogin ? `${API}/auth/login` : `${API}/auth/register`;
-      const payload = isLogin
-        ? { email: formData.email, password: formData.password }
-        : { email: formData.email, password: formData.password, name: formData.name, department: formData.department || null };
-
-      const response = await axios.post(endpoint, payload);
+      const response = await axios.post(`${API}/auth/login`, {
+        email: formData.email,
+        password: formData.password,
+      });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       setIsAuthenticated(true);
-      toast.success(isLogin ? 'Login successful!' : 'Account created successfully!');
+      toast.success('Login successful!');
 
       // Role-based redirect
       const user = response.data.user;
@@ -68,7 +56,7 @@ export default function Login({ setIsAuthenticated }) {
       <div
         className="hidden lg:flex lg:w-1/2 relative bg-cover bg-center"
         style={{
-          backgroundImage: 'url(https://lh3.googleusercontent.com/gps-cs-s/AHVAwepalOYaVcI5cDj-DNIjjs8iJWdpUoIMLTCVIwNL3ZzM1DbQl-LbMKIc4HF-eCCQ0mxtgXCF1lHES1oVolF__gun4E_VnxGe42Lg4xUpVMEg0x7CWiUaZxpCF-1B5jGBQVVgL8iT=s1360-w1360-h1020-rw)'
+          backgroundImage: 'url(/pt-diamond.jpeg)'
         }}
       >
         <div className="absolute inset-0" style={{
@@ -102,29 +90,14 @@ export default function Login({ setIsAuthenticated }) {
           <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-8">
             <div className="mb-8">
               <h2 className="text-3xl font-semibold tracking-tight text-stone-900 mb-2">
-                {isLogin ? 'Welcome Back' : 'Create Account'}
+                Welcome Back
               </h2>
               <p className="text-sm text-stone-500">
-                {isLogin ? 'Enter your credentials to access your department' : 'Sign up and select your department'}
+                Enter your credentials to access your department
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {!isLogin && (
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium text-stone-700">Full Name</Label>
-                  <Input
-                    id="name"
-                    data-testid="register-name-input"
-                    type="text"
-                    placeholder="John Doe"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required={!isLogin}
-                    className="h-10"
-                  />
-                </div>
-              )}
 
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium text-stone-700">Email</Label>
@@ -163,61 +136,22 @@ export default function Login({ setIsAuthenticated }) {
                 </div>
               </div>
 
-              {!isLogin && (
-                <div className="space-y-2">
-                  <Label htmlFor="department" className="text-sm font-medium text-stone-700">Department</Label>
-                  <Select
-                    value={formData.department}
-                    onValueChange={(value) => setFormData({ ...formData, department: value })}
-                  >
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Select your department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => {
-                        const DeptIcon = dept.icon;
-                        return (
-                          <SelectItem key={dept.name} value={dept.name}>
-                            <span className="flex items-center gap-2">
-                              <DeptIcon size={14} style={{ color: dept.color }} />
-                              {dept.name}
-                            </span>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
               <Button
                 type="submit"
                 data-testid="login-submit-button"
                 disabled={loading}
                 className="w-full h-11 bg-[#134E4A] hover:bg-[#115E59] text-white font-medium rounded-md transition-all active:scale-95"
               >
-                {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                {loading ? 'Please wait...' : 'Sign In'}
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-sm text-stone-600 hover:text-[#134E4A] font-medium transition-colors"
-              >
-                {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-              </button>
+            <div className="mt-6 p-4 bg-stone-50 rounded-md border border-stone-200">
+              <p className="text-xs text-stone-500 mb-2 font-medium">Default Credentials:</p>
+              <p className="text-xs font-mono text-stone-600">Admin: admin@company.com / Admin123!</p>
+              <p className="text-xs font-mono text-stone-600 mt-1">Dept: purchasing@company.com / Dept123!</p>
+              <p className="text-xs text-stone-400 mt-1">Available: purchasing, sales, ppic, engineering, accounting, quality, produksi, hr</p>
             </div>
-
-            {isLogin && (
-              <div className="mt-6 p-4 bg-stone-50 rounded-md border border-stone-200">
-                <p className="text-xs text-stone-500 mb-2 font-medium">Default Credentials:</p>
-                <p className="text-xs font-mono text-stone-600">Admin: admin@company.com / Admin123!</p>
-                <p className="text-xs font-mono text-stone-600 mt-1">Dept: purchasing@company.com / Dept123!</p>
-                <p className="text-xs text-stone-400 mt-1">Available: purchasing, sales, ppic, engineering, accounting, quality, produksi, hr</p>
-              </div>
-            )}
           </div>
         </div>
       </div>

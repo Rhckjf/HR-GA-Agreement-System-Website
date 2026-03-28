@@ -7,8 +7,13 @@ const protect = async (req, res, next) => {
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         try {
             token = req.headers.authorization.split(' ')[1];
+            
+            if (!process.env.JWT_SECRET) {
+                console.error('FATAL ERROR: JWT_SECRET is not defined in environment variables.');
+                return res.status(500).json({ detail: 'Internal server error: Authentication configuration missing' });
+            }
 
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
             // In the Python code, it fetches user by ID from the payload
             // Python: user_id = payload.get('user_id')
