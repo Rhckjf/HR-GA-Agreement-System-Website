@@ -7,6 +7,10 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
 
+const escapeRegex = (string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const getIdQuery = (idParam) => {
     return mongoose.Types.ObjectId.isValid(idParam)
         ? { $or: [{ _id: idParam }, { id: idParam }] }
@@ -50,11 +54,18 @@ const getAgreements = async (req, res) => {
         }
 
         if (search) {
+<<<<<<< HEAD
             const searchRegex = { $regex: search, $options: 'i' };
             const searchOr = [
                 { title: searchRegex },
                 { vendor_name: searchRegex },
                 { origin_department: searchRegex }
+=======
+            const safeSearch = escapeRegex(search);
+            query.$or = [
+                { title: { $regex: safeSearch, $options: 'i' } },
+                { vendor_name: { $regex: safeSearch, $options: 'i' } }
+>>>>>>> 2f4829baa7e6273738d552b9533bd8875f423293
             ];
             if (query.$and) {
                 query.$and.push({ $or: searchOr });
@@ -188,7 +199,20 @@ const updateAgreement = async (req, res) => {
             return res.status(404).json({ detail: 'Agreement not found' });
         } // Check permission? matching Python: no check.
 
-        const updateData = req.body;
+        // Only allow safe fields to be updated
+        const safeData = {
+            title: req.body.title,
+            vendor_id: req.body.vendor_id,
+            category: req.body.category,
+            start_date: req.body.start_date,
+            expiry_date: req.body.expiry_date,
+            cycle_year: req.body.cycle_year,
+            description: req.body.description,
+            updated_at: new Date().toISOString()
+        };
+
+        // Remove undefined fields
+        const updateData = Object.fromEntries(Object.entries(safeData).filter(([_, v]) => v !== undefined));
 
         // If vendor_id passes, update vendor_name
         if (updateData.vendor_id) {
@@ -197,8 +221,6 @@ const updateAgreement = async (req, res) => {
                 updateData.vendor_name = vendor.name;
             }
         }
-
-        updateData.updated_at = new Date().toISOString();
 
         agreement = await Agreement.findOneAndUpdate(
             getIdQuery(req.params.id),
@@ -277,7 +299,11 @@ const downloadAgreement = async (req, res) => {
             return res.status(404).json({ detail: 'No file uploaded' });
         }
 
-        const filePath = path.resolve(agreement.file_path);
+        // Secure the file path with path.basename to prevent directory traversal
+        const baseDir = path.resolve(__dirname, '../../uploads');
+        const fileName = path.basename(agreement.file_path);
+        const filePath = path.resolve(baseDir, fileName);
+        
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ detail: 'File not found on server' });
         }
@@ -306,7 +332,11 @@ const previewAgreement = async (req, res) => {
             return res.status(404).json({ detail: 'No file uploaded' });
         }
 
-        const filePath = path.resolve(agreement.file_path);
+        // Secure the file path with path.basename to prevent directory traversal
+        const baseDir = path.resolve(__dirname, '../../uploads');
+        const fileName = path.basename(agreement.file_path);
+        const filePath = path.resolve(baseDir, fileName);
+        
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ detail: 'File not found on server' });
         }
@@ -326,12 +356,17 @@ const approveAgreement = async (req, res) => {
             return res.status(403).json({ detail: 'Only admin can approve' });
         }
 
+        const existingAgreement = await Agreement.findOne(getIdQuery(req.params.id)).lean();
+        if (!existingAgreement) {
+            return res.status(404).json({ detail: 'Agreement not found' });
+        }
+
+        // 1. Update the original agreement's approval status without changing its department
         const agreement = await Agreement.findOneAndUpdate(
             getIdQuery(req.params.id),
             {
                 $set: {
                     approval_status: 'approved',
-                    department: 'HR', // Route to HR upon approval
                     approved_by: req.user.name,
                     approved_at: new Date().toISOString(),
                     rejection_reason: null
@@ -340,9 +375,19 @@ const approveAgreement = async (req, res) => {
             { new: true }
         ).lean();
 
-        if (!agreement) {
-            return res.status(404).json({ detail: 'Agreement not found' });
-        }
+        // 2. Clone the agreement specifically for HR department
+        const hrAgreementData = { ...existingAgreement };
+        delete hrAgreementData._id; // Remove MongoDB internal ID
+        hrAgreementData.id = uuidv4(); // Generate new UUID for the clone
+        hrAgreementData.department = 'HR';
+        hrAgreementData.approval_status = 'approved';
+        hrAgreementData.approved_by = req.user.name;
+        hrAgreementData.approved_at = new Date().toISOString();
+        hrAgreementData.rejection_reason = null;
+        hrAgreementData.created_at = new Date().toISOString();
+        hrAgreementData.updated_at = new Date().toISOString();
+
+        await Agreement.create(hrAgreementData);
 
         // Notification
         if (agreement.created_by) {
@@ -351,7 +396,7 @@ const approveAgreement = async (req, res) => {
                 user_id: agreement.created_by,
                 agreement_id: agreement.id,
                 agreement_title: agreement.title,
-                message: `Agreement '${agreement.title}' was approved and moved to HR.`,
+                message: `Agreement '${agreement.title}' was approved and a copy was sent to HR.`,
                 type: 'approval',
                 is_read: false,
                 created_at: new Date().toISOString()

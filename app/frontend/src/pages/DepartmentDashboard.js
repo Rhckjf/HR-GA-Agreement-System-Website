@@ -197,22 +197,22 @@ export default function DepartmentDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {statCards.map((stat, index) => {
                     const Icon = stat.icon;
                     return (
                         <Card
                             key={index}
-                            className="bg-white border border-stone-200 rounded-lg shadow-sm hover:shadow-md transition-all"
+                            className="bg-white border border-stone-200 rounded-lg shadow-sm hover:shadow-md transition-all min-w-0 overflow-hidden"
                         >
-                            <CardContent className="p-6">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-stone-500 mb-2">{stat.title}</p>
-                                        <p className="text-3xl font-bold text-stone-900">{stat.value}</p>
+                            <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-medium text-stone-500 mb-1 truncate">{stat.title}</p>
+                                        <p className="text-2xl font-bold text-stone-900">{stat.value}</p>
                                     </div>
-                                    <div className="p-3 rounded-lg" style={{ backgroundColor: stat.bgColor, color: stat.color }}>
-                                        <Icon size={24} strokeWidth={2} />
+                                    <div className="p-2 rounded-lg flex-shrink-0" style={{ backgroundColor: stat.bgColor, color: stat.color }}>
+                                        <Icon size={20} strokeWidth={2} />
                                     </div>
                                 </div>
                             </CardContent>

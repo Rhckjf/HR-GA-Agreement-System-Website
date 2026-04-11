@@ -100,7 +100,7 @@ export default function AgreementDetail() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', agreement.file_path.split('/').pop()); // Extract filename
+      link.setAttribute('download', agreement.file_path.split(/[/\\]/).pop()); // Extract filename (handle both / and \\)
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -267,6 +267,7 @@ export default function AgreementDetail() {
             {agreement.file_path && (
               <div className="pt-4 border-t border-stone-200">
                 <Button
+                  onClick={handleDownload}
                   className="bg-stone-100 text-stone-700 hover:bg-stone-200 gap-2 h-10 px-4 rounded-md font-medium transition-all"
                   data-testid="download-file-button"
                 >
