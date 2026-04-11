@@ -10,12 +10,13 @@ const getDashboardStats = async (req, res) => {
         const { department } = req.query;
         let query = {};
 
-        // If not admin, force their own department
+        // Use origin_department so staff can see ALL agreements they created,
+        // including ones that moved to HR after approval.
         if (req.user.role !== 'admin' && req.user.department) {
-            query.department = req.user.department;
+            query.origin_department = req.user.department;
         } else if (department) {
-            // Admin requesting a specific department
-            query.department = department;
+            // Admin requesting a specific department view
+            query.origin_department = department;
         }
 
         const allAgreements = await Agreement.find(query).lean();
@@ -65,18 +66,24 @@ const getDashboardStats = async (req, res) => {
             }
         });
 
+        // Approval breakdown
+        const pendingCount  = allAgreements.filter(a => a.approval_status === 'pending').length;
+        const approvedCount = allAgreements.filter(a => a.approval_status === 'approved').length;
+        const rejectedCount = allAgreements.filter(a => a.approval_status === 'rejected').length;
+
         // Determine vendor filter based on department
         let vendorQuery = {};
         const getVendorTypeByDept = (d) => {
-            if (d === 'Sales') return ['customer'];
+            if (d === 'Sales')     return ['customer'];
             if (d === 'Purchasing') return ['vendor'];
-            if (d === 'PPIC') return ['barang', 'jasa', 'forwarder'];
+            if (d === 'PPIC')      return ['barang', 'jasa', 'forwarder'];
             return [];
         };
 
-        const currentDept = query.department;
+        const currentDept = query.origin_department;
         if (currentDept) {
-            vendorQuery.type = { $in: getVendorTypeByDept(currentDept) };
+            const types = getVendorTypeByDept(currentDept);
+            if (types.length > 0) vendorQuery.type = { $in: types };
         }
 
         const totalVendors = await Vendor.countDocuments(vendorQuery);
@@ -86,6 +93,9 @@ const getDashboardStats = async (req, res) => {
             active_agreements: activeCount,
             expiring_soon: expiringSoonCount,
             expired_agreements: expiredCount,
+            pending_approval: pendingCount,
+            approved_count: approvedCount,
+            rejected_count: rejectedCount,
             total_vendors: totalVendors,
             expiry_distribution: {
                 active_over_1_year: distActiveOver1Year,

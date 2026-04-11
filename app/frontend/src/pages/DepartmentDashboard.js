@@ -11,6 +11,7 @@ import {
     TrendingUp,
     PieChart as PieChartIcon,
     ArrowLeft,
+    Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -115,6 +116,13 @@ export default function DepartmentDashboard() {
             color: '#DC2626',
             bgColor: '#FEF2F2',
         },
+        {
+            title: 'Pending Approval',
+            value: stats?.pending_approval || 0,
+            icon: Clock,
+            color: '#7C3AED',
+            bgColor: '#F5F3FF',
+        },
     ];
 
     const getPieData = () => {
@@ -189,7 +197,7 @@ export default function DepartmentDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {statCards.map((stat, index) => {
                     const Icon = stat.icon;
                     return (

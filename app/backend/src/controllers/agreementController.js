@@ -21,28 +21,53 @@ const getAgreements = async (req, res) => {
         const { category, status, approval_status, search, cycle_year, department } = req.query;
         let query = {};
 
-        // Department Scoping
+        // Department Scoping:
+        // Staff can see agreements from THEIR department (current dept) OR
+        // agreements they originally created (origin_department) — so they can see
+        // approved agreements that moved to HR.
         if (req.user.role !== 'admin' && req.user.department) {
-            query.department = req.user.department;
+            query.$or = [
+                { department: req.user.department },
+                { origin_department: req.user.department }
+            ];
         } else if (department) {
-            query.department = department; // Allow admin to filter by department
+            // Admin filter by specific department — use $or for both fields
+            query.$or = [
+                { department: department },
+                { origin_department: department }
+            ];
         }
 
         if (category) query.category = category;
         if (cycle_year) query.cycle_year = parseInt(cycle_year);
-        if (approval_status) query.approval_status = approval_status;
+        if (approval_status) {
+            // When combined with $or, we need $and to avoid accidentally overwriting it
+            if (query.$or) {
+                query = { $and: [{ $or: query.$or }, { approval_status: approval_status }] };
+            } else {
+                query.approval_status = approval_status;
+            }
+        }
 
         if (search) {
-            query.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { vendor_name: { $regex: search, $options: 'i' } }
+            const searchRegex = { $regex: search, $options: 'i' };
+            const searchOr = [
+                { title: searchRegex },
+                { vendor_name: searchRegex },
+                { origin_department: searchRegex }
             ];
+            if (query.$and) {
+                query.$and.push({ $or: searchOr });
+            } else if (query.$or) {
+                query = { $and: [{ $or: query.$or }, { $or: searchOr }] };
+            } else {
+                query.$or = searchOr;
+            }
         }
 
         let agreements = await Agreement.find(query).limit(1000).lean();
 
-        // Update status and filter
-        const now = new Date();
+        // Recalculate status from expiry_date
         agreements = agreements.map(agreement => {
             const currentStatus = calculateAgreementStatus(agreement.expiry_date);
             return { ...agreement, status: currentStatus };
@@ -69,19 +94,15 @@ const getAgreement = async (req, res) => {
             return res.status(404).json({ detail: 'Agreement not found' });
         }
 
-        // Check permission if not admin
-        if (req.user.role !== 'admin' && agreement.department && agreement.department !== req.user.department) {
-            // Or maybe allow read if it's tailored? Python code allows if dept matches or if user is admin.
-            // Wait, Python: if current_user['role'] != 'admin' and agreement.get('department') and agreement.get('department') != current_user.get('department'): raise 403
-            // BUT only for download/preview. For generic get, it uses filtered query in list, but explicit get might need check.
-            // Python implementation for single get:
-            // checks ID.
-            // Doesn't seem to explicitly check department for GET /agreements/:id.
-            // But let's be safe and replicate specific download checks later.
-            // Actually, for get_agreement (list), it filters. For get_agreement (single), it only checks ID. 
-            // Wait, let's check `server.py` line 331. It just finds one. No auth check on department there?
-            // Ah, `get_agreements` (list) has scoping. `get_agreement` (single) does NOT have scoping in Python code provided!
-            // That might be a bug in Python code or intended. I will stick to Python behavior: no check.
+        // Check permission if not admin:
+        // Staff can see their own dept's agreements AND agreements they created (via origin_department)
+        // This covers case where approved agreement moved to HR — staff can still view it
+        if (req.user.role !== 'admin') {
+            const isOwnDept = agreement.department && agreement.department === req.user.department;
+            const isOrigin = agreement.origin_department && agreement.origin_department === req.user.department;
+            if (!isOwnDept && !isOrigin) {
+                return res.status(403).json({ detail: 'Access denied' });
+            }
         }
 
         agreement.status = calculateAgreementStatus(agreement.expiry_date);
