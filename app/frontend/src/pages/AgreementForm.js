@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ChevronDown } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -63,7 +64,12 @@ export default function AgreementForm() {
     type: department === 'Sales' ? 'customer' : department === 'Purchasing' ? 'vendor' : 'barang'
   });
 
-  const categories = ['Service Agreement', 'Vendor Contract', 'NDA', 'Partnership', 'Lease Agreement', 'Other'];
+  const DEFAULT_CATEGORIES = ['Service Agreement', 'Vendor Contract', 'NDA', 'Partnership', 'Lease Agreement', 'Other'];
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categoryInput, setCategoryInput] = useState('');
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const [filteredCategories, setFilteredCategories] = useState([]);
+  const categoryRef = useRef(null);
 
   // Get the default type for quick-adding based on department
   const getDefaultType = () => {
@@ -105,10 +111,34 @@ export default function AgreementForm() {
 
   useEffect(() => {
     fetchVendors();
+    fetchCategories();
     if (isEdit) {
       fetchAgreement();
     }
   }, [id]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (categoryRef.current && !categoryRef.current.contains(e.target)) {
+        setShowCategorySuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API}/agreements/categories`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCategories(response.data);
+    } catch {
+      // fallback to default categories already set
+    }
+  };
 
   // department and isAdmin are declared above
 
@@ -147,15 +177,17 @@ export default function AgreementForm() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const agreement = response.data;
+      const catValue = agreement.category || '';
       setFormData({
         title: agreement.title,
         vendor_id: agreement.vendor_id,
-        category: agreement.category,
+        category: catValue,
         start_date: agreement.start_date.split('T')[0],
         expiry_date: agreement.expiry_date.split('T')[0],
         cycle_year: agreement.cycle_year || new Date(agreement.start_date).getFullYear(),
         description: agreement.description || ''
       });
+      setCategoryInput(catValue);
     } catch (error) {
       toast.error('Failed to fetch agreement details');
     }
@@ -285,22 +317,70 @@ export default function AgreementForm() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2" ref={categoryRef}>
                 <Label htmlFor="category" className="text-sm font-medium text-stone-700">Category *</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
-                  required
-                >
-                  <SelectTrigger className="h-10" data-testid="category-select">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    {categories.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Input
+                    id="category"
+                    data-testid="category-select"
+                    value={categoryInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCategoryInput(val);
+                      setFormData(prev => ({ ...prev, category: val }));
+                      const filtered = categories.filter(c =>
+                        c.toLowerCase().includes(val.toLowerCase())
+                      );
+                      setFilteredCategories(filtered);
+                      setShowCategorySuggestions(true);
+                    }}
+                    onFocus={() => {
+                      const filtered = categoryInput
+                        ? categories.filter(c => c.toLowerCase().includes(categoryInput.toLowerCase()))
+                        : categories;
+                      setFilteredCategories(filtered);
+                      setShowCategorySuggestions(true);
+                    }}
+                    placeholder="Ketik atau pilih kategori..."
+                    required
+                    autoComplete="off"
+                    className="h-10 pr-8"
+                  />
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
+                  />
+                  {showCategorySuggestions && filteredCategories.length > 0 && (
+                    <ul className="absolute z-50 w-full mt-1 bg-white border border-stone-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+                      {filteredCategories.map(cat => (
+                        <li key={cat}
+                          className="px-3 py-2 text-sm cursor-pointer hover:bg-stone-50 text-stone-800"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setCategoryInput(cat);
+                            setFormData(prev => ({ ...prev, category: cat }));
+                            setShowCategorySuggestions(false);
+                          }}
+                        >{cat}</li>
+                      ))}
+                      {/* If typed value not in list, show option to use it as-is */}
+                      {categoryInput.trim() !== '' &&
+                        !categories.some(c => c.toLowerCase() === categoryInput.toLowerCase()) && (
+                          <li
+                            className="px-3 py-2 text-sm cursor-pointer hover:bg-teal-50 text-[#134E4A] font-medium border-t border-stone-100"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setCategoryInput(categoryInput.trim());
+                              setFormData(prev => ({ ...prev, category: categoryInput.trim() }));
+                              setShowCategorySuggestions(false);
+                            }}
+                          >
+                            + Gunakan "{categoryInput.trim()}"
+                          </li>
+                        )}
+                    </ul>
+                  )}
+                </div>
               </div>
 
 

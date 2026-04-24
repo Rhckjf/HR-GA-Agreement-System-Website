@@ -54,18 +54,12 @@ const getAgreements = async (req, res) => {
         }
 
         if (search) {
-<<<<<<< HEAD
-            const searchRegex = { $regex: search, $options: 'i' };
+            const safeSearch = escapeRegex(search);
+            const searchRegex = { $regex: safeSearch, $options: 'i' };
             const searchOr = [
                 { title: searchRegex },
                 { vendor_name: searchRegex },
                 { origin_department: searchRegex }
-=======
-            const safeSearch = escapeRegex(search);
-            query.$or = [
-                { title: { $regex: safeSearch, $options: 'i' } },
-                { vendor_name: { $regex: safeSearch, $options: 'i' } }
->>>>>>> 2f4829baa7e6273738d552b9533bd8875f423293
             ];
             if (query.$and) {
                 query.$and.push({ $or: searchOr });
@@ -459,9 +453,41 @@ const rejectAgreement = async (req, res) => {
     }
 };
 
+// @desc    Get all unique categories
+// @route   GET /api/agreements/categories
+// @access  Private
+const getCategories = async (req, res) => {
+    try {
+        const DEFAULT_CATEGORIES = [
+            'Service Agreement',
+            'Vendor Contract',
+            'NDA',
+            'Partnership',
+            'Lease Agreement',
+            'Other'
+        ];
+
+        // Fetch distinct categories from the database
+        const dbCategories = await Agreement.distinct('category');
+
+        // Merge default categories with DB categories, remove nulls/empty, deduplicate
+        const merged = Array.from(
+            new Set([
+                ...DEFAULT_CATEGORIES,
+                ...dbCategories.filter(c => c && c.trim() !== '')
+            ])
+        ).sort();
+
+        res.json(merged);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getAgreements,
     getAgreement,
+    getCategories,
     createAgreement,
     updateAgreement,
     deleteAgreement,
