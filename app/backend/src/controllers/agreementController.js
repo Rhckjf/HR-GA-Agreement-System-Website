@@ -467,8 +467,14 @@ const getCategories = async (req, res) => {
             'Other'
         ];
 
-        // Fetch distinct categories from the database
-        const dbCategories = await Agreement.distinct('category');
+        // Ensure users only see categories created by their own department (unless Admin)
+        let query = {};
+        if (req.user.role !== 'admin' && req.user.department) {
+            query.origin_department = req.user.department;
+        }
+
+        // Fetch distinct categories from the database scoped to the department
+        const dbCategories = await Agreement.distinct('category', query);
 
         // Merge default categories with DB categories, remove nulls/empty, deduplicate
         const merged = Array.from(

@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { v4: uuidv4 } = require('uuid');
 const Agreement = require('../models/agreement');
 const User = require('../models/user');
+const DepartmentSettings = require('../models/departmentSettings');
 const Notification = require('../models/notification');
 const { calculateAgreementStatus } = require('./status');
 const { sendEmail } = require('./mailer');
@@ -10,123 +11,164 @@ const checkExpiryAndNotify = async () => {
     try {
         console.log('[CRON] Starting daily agreement expiry check...');
         const agreements = await Agreement.find({
-            // Only fetch agreements that haven't been fully notified
             $or: [
-                { notified_expiring_soon: false },
+                { notified_3m: false },
+                { notified_2m: false },
+                { notified_1m: false },
                 { notified_expired: false }
             ]
         });
 
-        if (agreements.length === 0) {
-            console.log('[CRON] No pending agreements to check.');
+        const departmentBuckets = {};
+
+        // Fetch admin user and admin email config
+        const adminUser = await User.findOne({ role: 'admin' });
+        const adminConfig = await DepartmentSettings.findOne({ department: 'Admin' });
+        let adminEmails = [];
+        if (adminConfig && adminConfig.emails) {
+            adminEmails = adminConfig.emails.filter(e => e.trim() !== '');
+        }
+
+        const now = new Date();
+        now.setHours(0,0,0,0);
+
+        for (const agreement of agreements) {
+            const expiryDate = new Date(agreement.expiry_date);
+            expiryDate.setHours(0,0,0,0);
+            
+            const diffTime = expiryDate.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            const dept = agreement.origin_department || agreement.department || 'Unknown';
+            let bucket = null;
+
+            if (diffDays <= 90 && diffDays > 60 && !agreement.notified_3m) {
+                bucket = '3m';
+                agreement.notified_3m = true;
+            } else if (diffDays <= 60 && diffDays > 30 && !agreement.notified_2m) {
+                bucket = '2m';
+                agreement.notified_2m = true;
+                agreement.notified_3m = true;
+            } else if (diffDays <= 30 && diffDays > 0 && !agreement.notified_1m) {
+                bucket = '1m';
+                agreement.notified_1m = true;
+                agreement.notified_2m = true;
+                agreement.notified_3m = true;
+            } else if (diffDays <= 0 && !agreement.notified_expired) {
+                bucket = 'expired';
+                agreement.notified_expired = true;
+                agreement.notified_1m = true;
+                agreement.notified_2m = true;
+                agreement.notified_3m = true;
+            }
+
+            if (bucket) {
+                if (!departmentBuckets[dept]) {
+                    departmentBuckets[dept] = { '3m': [], '2m': [], '1m': [], 'expired': [] };
+                }
+                departmentBuckets[dept][bucket].push(agreement);
+            }
+        }
+
+        const depts = Object.keys(departmentBuckets);
+        if (depts.length === 0) {
+            console.log('[CRON] No agreements crossed milestones today.');
             return;
         }
 
-        // Fetch admin user
-        const adminUser = await User.findOne({ role: 'admin' });
+        for (const dept of depts) {
+            const buckets = departmentBuckets[dept];
+            const allDeptAgreements = [...buckets['3m'], ...buckets['2m'], ...buckets['1m'], ...buckets['expired']];
+            if (allDeptAgreements.length === 0) continue;
 
-        for (const agreement of agreements) {
-            const currentStatus = calculateAgreementStatus(agreement.expiry_date);
-            const dept = agreement.origin_department || agreement.department;
-            
-            // Fetch one user from the department
-            let deptUser = null;
-            if (dept) {
-                deptUser = await User.findOne({ department: dept });
-            }
+            console.log(`[CRON] Compiling digest for department: ${dept}`);
 
-            // Fallback to created_by user if no dept user found
-            if (!deptUser && agreement.created_by) {
-                deptUser = await User.findOne({ id: agreement.created_by });
+            let deptEmails = [];
+            const deptConfig = await DepartmentSettings.findOne({ department: dept });
+            if (deptConfig && deptConfig.emails) {
+                deptEmails = deptConfig.emails.filter(e => e.trim() !== '');
             }
 
             const recipients = [];
-            if (deptUser && deptUser.email) recipients.push(deptUser);
-            if (adminUser && adminUser.email && (!deptUser || adminUser.email !== deptUser.email)) {
+            for (const email of deptEmails) {
+                if (email && !recipients.find(r => r.email === email)) {
+                    recipients.push({ id: `dept-email-${uuidv4()}`, name: `${dept} Staff`, email });
+                }
+            }
+            for (const email of adminEmails) {
+                if (email && !recipients.find(r => r.email === email)) {
+                    recipients.push({ id: `admin-email-${uuidv4()}`, name: 'Admin', email });
+                }
+            }
+            if (recipients.length === 0 && adminUser && adminUser.email) {
                 recipients.push(adminUser);
             }
 
-            if (currentStatus === 'expiring_soon' && !agreement.notified_expiring_soon) {
-                console.log(`[CRON] Agreement ${agreement.title} is expiring soon.`);
+            let html = `<h2>Agreement Validity Report - ${dept}</h2>`;
+            html += `<p>Hello,</p><p>This is your consolidated report of agreements approaching expiry or already expired.</p>`;
+
+            const generateTable = (title, items) => {
+                if (items.length === 0) return '';
+                let tableHtml = `<h3 style="margin-top: 1.5rem; color: #374151;">${title}</h3>`;
+                tableHtml += `<table border="1" style="border-collapse: collapse; width: 100%; font-family: sans-serif; font-size: 14px;">
+                                <thead>
+                                    <tr style="background-color: #f3f4f6;">
+                                        <th style="padding: 10px; text-align: left;">Title</th>
+                                        <th style="padding: 10px; text-align: left;">Vendor</th>
+                                        <th style="padding: 10px; text-align: left;">Category</th>
+                                        <th style="padding: 10px; text-align: left;">Expiry Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                for (const item of items) {
+                    tableHtml += `<tr>
+                                    <td style="padding: 10px;">${item.title}</td>
+                                    <td style="padding: 10px;">${item.vendor_name || '-'}</td>
+                                    <td style="padding: 10px;">${item.category}</td>
+                                    <td style="padding: 10px; color: ${title.includes('EXPIRED') ? 'red' : 'black'}; font-weight: 500;">
+                                        ${new Date(item.expiry_date).toLocaleDateString()}
+                                    </td>
+                                  </tr>`;
+                }
+                tableHtml += `</tbody></table>`;
+                return tableHtml;
+            };
+
+            html += generateTable('Expiring in ~3 Months (<= 90 Days)', buckets['3m']);
+            html += generateTable('Expiring in ~2 Months (<= 60 Days)', buckets['2m']);
+            html += generateTable('Expiring in ~1 Month (<= 30 Days)', buckets['1m']);
+            html += generateTable('⚠️ EXPIRED (Action Required)', buckets['expired']);
+
+            html += `<p style="margin-top:20px;">Thank you,<br>HR-GA Agreement System</p>`;
+            const subject = `[Notification] Agreement Expiry Digest - ${dept}`;
+
+            for (const user of recipients) {
+                if (!user.email) continue;
+                await sendEmail(user.email, subject, html);
                 
-                // Send notifications
-                for (const user of recipients) {
-                    // Create in-app notification
+                for (const item of allDeptAgreements) {
+                    let msg = `Agreement '${item.title}' is expiring soon.`;
+                    let type = 'expiry_warning';
+                    if (buckets['expired'].includes(item)) { 
+                        msg = `Agreement '${item.title}' has expired!`; 
+                        type = 'expired'; 
+                    }
                     await Notification.create({
                         id: uuidv4(),
                         user_id: user.id,
-                        agreement_id: agreement.id,
-                        agreement_title: agreement.title,
-                        message: `Agreement '${agreement.title}' is expiring soon (Expiry Date: ${new Date(agreement.expiry_date).toLocaleDateString()}).`,
-                        type: 'expiry_warning',
+                        agreement_id: item.id,
+                        agreement_title: item.title,
+                        message: msg + ` (Expiry Date: ${new Date(item.expiry_date).toLocaleDateString()}).`,
+                        type: type,
                         is_read: false,
                         created_at: new Date().toISOString()
                     });
-
-                    // Send email
-                    const subject = `[Expiring Soon] Agreement: ${agreement.title}`;
-                    const html = `
-                        <h2>Agreement Expiring Soon</h2>
-                        <p>Hello ${user.name},</p>
-                        <p>This is a notification that the following agreement is expiring soon:</p>
-                        <ul>
-                            <li><strong>Title:</strong> ${agreement.title}</li>
-                            <li><strong>Vendor:</strong> ${agreement.vendor_name || 'N/A'}</li>
-                            <li><strong>Category:</strong> ${agreement.category}</li>
-                            <li><strong>Expiry Date:</strong> ${new Date(agreement.expiry_date).toLocaleDateString()}</li>
-                            <li><strong>Department:</strong> ${dept}</li>
-                        </ul>
-                        <p>Please review and take necessary actions.</p>
-                        <p>Thank you,<br>HR-GA Agreement System</p>
-                    `;
-                    await sendEmail(user.email, subject, html);
                 }
-
-                // Update agreement
-                agreement.notified_expiring_soon = true;
-                await agreement.save();
-
-            } else if (currentStatus === 'expired' && !agreement.notified_expired) {
-                console.log(`[CRON] Agreement ${agreement.title} has expired.`);
-                
-                // Send notifications
-                for (const user of recipients) {
-                    // Create in-app notification
-                    await Notification.create({
-                        id: uuidv4(),
-                        user_id: user.id,
-                        agreement_id: agreement.id,
-                        agreement_title: agreement.title,
-                        message: `Agreement '${agreement.title}' has expired! (Expiry Date: ${new Date(agreement.expiry_date).toLocaleDateString()}).`,
-                        type: 'expired',
-                        is_read: false,
-                        created_at: new Date().toISOString()
-                    });
-
-                    // Send email
-                    const subject = `[EXPIRED] Agreement: ${agreement.title}`;
-                    const html = `
-                        <h2>Agreement Expired</h2>
-                        <p>Hello ${user.name},</p>
-                        <p>This is a critical notification that the following agreement <strong>has expired</strong>:</p>
-                        <ul>
-                            <li><strong>Title:</strong> ${agreement.title}</li>
-                            <li><strong>Vendor:</strong> ${agreement.vendor_name || 'N/A'}</li>
-                            <li><strong>Category:</strong> ${agreement.category}</li>
-                            <li><strong>Expiry Date:</strong> ${new Date(agreement.expiry_date).toLocaleDateString()}</li>
-                            <li><strong>Department:</strong> ${dept}</li>
-                        </ul>
-                        <p>Please take immediate action.</p>
-                        <p>Thank you,<br>HR-GA Agreement System</p>
-                    `;
-                    await sendEmail(user.email, subject, html);
-                }
-
-                // Update agreement
-                agreement.notified_expired = true;
-                // If it transitioned from active directly to expired (e.g. short duration), mark expiring_soon as true as well so it doesn't trigger later
-                agreement.notified_expiring_soon = true; 
-                await agreement.save();
+            }
+            
+            // Save the items
+            for (const item of allDeptAgreements) {
+                await item.save();
             }
         }
         console.log('[CRON] Daily agreement expiry check completed.');
@@ -143,7 +185,7 @@ const initCronJobs = () => {
 
     // Also run immediately on startup (for testing purposes, but usually you'd want to just wait for the schedule)
     // Also run immediately on startup (for testing purposes)
-    // setTimeout(checkExpiryAndNotify, 5000); 
+    setTimeout(checkExpiryAndNotify, 5000); 
 
     console.log('[CRON] Cron jobs initialized.');
 };

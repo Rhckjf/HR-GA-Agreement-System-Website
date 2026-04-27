@@ -47,12 +47,12 @@ export default function VendorsList() {
 
   // Determine allowed types based on department
   const getAllowedTypes = () => {
-    if (isAdmin) return ['barang', 'jasa', 'customer', 'vendor', 'forwarder'];
+    if (isAdmin) return ['barang', 'jasa', 'customer', 'vendor', 'forwarder', 'mitra'];
     switch (department) {
       case 'Sales': return ['customer'];
       case 'Purchasing': return ['vendor'];
       case 'PPIC': return ['barang', 'jasa', 'forwarder'];
-      default: return []; // Or default types if they shouldn't see anything
+      default: return ['mitra']; 
     }
   };
   const allowedTypes = getAllowedTypes();
@@ -177,12 +177,12 @@ export default function VendorsList() {
             {isAdmin ? 'Master Data' :
               department === 'Sales' ? 'Customers' :
                 department === 'Purchasing' ? 'Vendors' :
-                  department === 'PPIC' ? 'Barang, Jasa & Forwarder' : 'Master Data'}
+                  department === 'PPIC' ? 'Barang, Jasa & Forwarder' : 'Mitra & Partners'}
           </h1>
           <p className="text-base text-stone-600 mt-2">
             {isAdmin
-              ? 'Kelola semua master data: Customer, Vendor, Barang, Jasa & Forwarder'
-              : `Manage your ${department === 'Sales' ? 'customer' : 'vendor'} contacts and information`
+              ? 'Kelola semua master data: Customer, Vendor, Barang, Jasa, Forwarder, dan Mitra.'
+              : `Manage your ${department === 'Sales' ? 'customer' : department === 'Purchasing' ? 'vendor' : 'partner & mitra'} contacts and information`
             }
           </p>
         </div>
@@ -198,6 +198,7 @@ export default function VendorsList() {
               {allowedTypes.includes('customer') && <SelectItem value="customer">Customer</SelectItem>}
               {allowedTypes.includes('vendor') && <SelectItem value="vendor">Vendor</SelectItem>}
               {allowedTypes.includes('forwarder') && <SelectItem value="forwarder">Forwarder</SelectItem>}
+              {allowedTypes.includes('mitra') && <SelectItem value="mitra">Mitra / Partner</SelectItem>}
             </SelectContent>
           </Select>
           {!isAdmin && allowedTypes.length > 0 && (
@@ -207,7 +208,7 @@ export default function VendorsList() {
               data-testid="add-vendor-button"
             >
               <Plus size={18} />
-              Add {department === 'Sales' ? 'Customer' : 'Vendor'}
+              Add {department === 'Sales' ? 'Customer' : department === 'Purchasing' || department === 'PPIC' ? 'Vendor' : 'Mitra'}
             </Button>
           )}
         </div>
@@ -238,9 +239,10 @@ export default function VendorsList() {
                         vendor.type === 'jasa' ? 'bg-purple-100 text-purple-700' :
                           vendor.type === 'customer' ? 'bg-green-100 text-green-700' :
                             vendor.type === 'vendor' ? 'bg-orange-100 text-orange-700' :
-                              'bg-teal-100 text-teal-700' // forwarder
+                              vendor.type === 'mitra' ? 'bg-pink-100 text-pink-700' :
+                                'bg-teal-100 text-teal-700' 
                         }`}>
-                        {vendor.type ? vendor.type.charAt(0).toUpperCase() + vendor.type.slice(1) : 'Barang'}
+                        {vendor.type ? vendor.type.charAt(0).toUpperCase() + vendor.type.slice(1) : 'Data'}
                       </span>
                     </div>
                   </div>
@@ -304,8 +306,8 @@ export default function VendorsList() {
           <DialogHeader>
             <DialogTitle>
               {editingVendor
-                ? `Edit ${department === 'Sales' ? 'Customer' : department === 'PPIC' ? 'Data' : 'Vendor'}`
-                : `Add New ${department === 'Sales' ? 'Customer' : department === 'PPIC' ? 'Barang / Jasa / Forwarder' : 'Vendor'}`
+                ? `Edit ${department === 'Sales' ? 'Customer' : department === 'PPIC' || department === 'Purchasing' ? 'Data' : 'Mitra'}`
+                : `Add New ${department === 'Sales' ? 'Customer' : department === 'PPIC' ? 'Barang / Jasa / Forwarder' : department === 'Purchasing' ? 'Vendor' : 'Mitra'}`
               }
             </DialogTitle>
             <DialogDescription>

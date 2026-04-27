@@ -12,6 +12,7 @@ import {
   Shield,
   Users as UsersIcon,
   Grid3X3,
+  Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -71,6 +72,7 @@ export default function Layout({ children }) {
         { name: 'Agreements', href: '/agreements', icon: FileText },
         { name: 'Master Data', href: '/vendors', icon: Building2 },
         { name: 'Users', href: '/admin/users', icon: UsersIcon },
+        { name: 'Dept Emails', href: '/admin/departments', icon: Mail },
       ];
     }
     const vendorMenuLabel = deptConfig?.vendorLabel ? `${deptConfig.vendorLabel}s` : 'Vendors';

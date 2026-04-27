@@ -14,7 +14,7 @@ const vendorSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['barang', 'jasa', 'customer', 'vendor', 'forwarder'],
+        enum: ['barang', 'jasa', 'customer', 'vendor', 'forwarder', 'mitra'],
         default: 'barang'
     },
     contact_person: {

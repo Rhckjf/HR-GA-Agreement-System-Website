@@ -49,7 +49,7 @@ const DEPARTMENTS = {
         bgColor: '#FFF7ED',
         gradient: 'from-orange-600 to-orange-800',
         description: 'Technical agreements, engineering contracts, and service level agreements',
-        vendorLabel: 'Vendor',
+        vendorLabel: 'Mitra/Partner',
     },
     Accounting: {
         name: 'Accounting',
@@ -59,7 +59,7 @@ const DEPARTMENTS = {
         bgColor: '#ECFEFF',
         gradient: 'from-cyan-600 to-cyan-800',
         description: 'Financial agreements, audit contracts, and accounting services',
-        vendorLabel: 'Vendor',
+        vendorLabel: 'Mitra/Partner',
     },
     Quality: {
         name: 'Quality',
@@ -69,7 +69,7 @@ const DEPARTMENTS = {
         bgColor: '#FEF2F2',
         gradient: 'from-red-600 to-red-800',
         description: 'Quality assurance agreements, certification contracts, and compliance',
-        vendorLabel: 'Vendor',
+        vendorLabel: 'Mitra/Partner',
     },
     Produksi: {
         name: 'Produksi',
@@ -79,7 +79,7 @@ const DEPARTMENTS = {
         bgColor: '#FEFCE8',
         gradient: 'from-yellow-600 to-yellow-800',
         description: 'Production service agreements, equipment maintenance, and operations',
-        vendorLabel: 'Vendor',
+        vendorLabel: 'Mitra/Partner',
     },
     HR: {
         name: 'HR',
@@ -89,7 +89,7 @@ const DEPARTMENTS = {
         bgColor: '#FDF2F8',
         gradient: 'from-pink-600 to-pink-800',
         description: 'HR contracts, outsourcing agreements, and employee services',
-        vendorLabel: 'Vendor',
+        vendorLabel: 'Mitra/Partner',
     },
 };
 
@@ -108,7 +108,7 @@ export const getDepartmentConfig = (dept) => {
 };
 
 export const getAllDepartments = () => {
-    return Object.values(DEPARTMENTS);
+    return [ADMIN_CONFIG, ...Object.values(DEPARTMENTS)];
 };
 
 export default DEPARTMENTS;

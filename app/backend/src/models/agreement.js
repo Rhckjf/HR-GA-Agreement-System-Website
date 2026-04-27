@@ -64,7 +64,15 @@ const agreementSchema = new mongoose.Schema({
         type: String,
         default: null
     },
-    notified_expiring_soon: {
+    notified_3m: {
+        type: Boolean,
+        default: false
+    },
+    notified_2m: {
+        type: Boolean,
+        default: false
+    },
+    notified_1m: {
         type: Boolean,
         default: false
     },

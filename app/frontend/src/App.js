@@ -5,6 +5,7 @@ import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import DepartmentDashboard from "@/pages/DepartmentDashboard";
+import DepartmentSettings from "@/pages/DepartmentSettings";
 import UserManagement from "@/pages/UserManagement";
 import AgreementsList from "@/pages/AgreementsList";
 import AgreementForm from "@/pages/AgreementForm";
@@ -60,6 +61,13 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <UserManagement />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/departments" element={
+            <ProtectedRoute>
+              <Layout>
+                <DepartmentSettings />
               </Layout>
             </ProtectedRoute>
           } />
