@@ -67,11 +67,13 @@ export default function AgreementsList() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user?.role === 'admin';
 
-  const categories = ['Service Agreement', 'Vendor Contract', 'NDA', 'Partnership', 'Lease Agreement', 'Other'];
+  const DEFAULT_CATEGORIES = ['Service Agreement', 'Vendor Contract', 'NDA', 'Partnership', 'Lease Agreement', 'Other'];
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
 
   useEffect(() => {
     fetchAgreements();
     fetchVendors();
+    fetchCategories();
   }, []);
 
 
@@ -107,6 +109,18 @@ export default function AgreementsList() {
       toast.error('Failed to fetch agreements');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API}/agreements/categories`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCategories(response.data);
+    } catch {
+      // fallback to DEFAULT_CATEGORIES already set in state
     }
   };
 

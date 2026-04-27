@@ -3,6 +3,7 @@ const router = express.Router();
 const {
     getAgreements,
     getAgreement,
+    getCategories,
     createAgreement,
     updateAgreement,
     deleteAgreement,
@@ -18,6 +19,8 @@ const upload = require('../middleware/upload');
 router.route('/')
     .get(protect, getAgreements)
     .post(protect, createAgreement);
+
+router.get('/categories', protect, getCategories);
 
 router.route('/:id')
     .get(protect, getAgreement)
