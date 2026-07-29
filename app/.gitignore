@@ -79,4 +79,8 @@ agenthub/agents/youtube/db
 .cache/
 
 # Mobile development
-android-sdk/ 
+android-sdk/
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
