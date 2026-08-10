@@ -13,7 +13,10 @@ import {
   User,
   Edit,
   Download,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  ExternalLink,
+  FileWarning,
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -266,14 +269,27 @@ export default function AgreementDetail() {
 
             {agreement.file_path && (
               <div className="pt-4 border-t border-stone-200">
-                <Button
-                  onClick={handleDownload}
-                  className="bg-stone-100 text-stone-700 hover:bg-stone-200 gap-2 h-10 px-4 rounded-md font-medium transition-all"
-                  data-testid="download-file-button"
-                >
-                  <Download size={16} />
-                  Download Contract
-                </Button>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Button
+                    onClick={handleDownload}
+                    className="bg-stone-100 text-stone-700 hover:bg-stone-200 gap-2 h-10 px-4 rounded-md font-medium transition-all"
+                    data-testid="download-file-button"
+                  >
+                    <Download size={16} />
+                    Download Contract
+                  </Button>
+                  {previewUrl && agreement.file_path?.toLowerCase().endsWith('.pdf') && (
+                    <Button
+                      onClick={() => window.open(previewUrl, '_blank')}
+                      variant="outline"
+                      className="gap-2 h-10 px-4 rounded-md font-medium border-stone-200 text-stone-600 hover:bg-stone-50"
+                      data-testid="open-new-tab-button"
+                    >
+                      <ExternalLink size={16} />
+                      Buka di Tab Baru
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </CardContent>
@@ -398,38 +414,106 @@ export default function AgreementDetail() {
             </CardContent>
           </Card>
         </div>
-
-        <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-          <AlertDialogContent className="bg-white">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reject Agreement</AlertDialogTitle>
-              <AlertDialogDescription>
-                Please provide a reason for rejecting this agreement.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="py-4">
-              <Label htmlFor="reason" className="mb-2 block">Reason</Label>
-              <Textarea
-                id="reason"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Enter rejection reason..."
-                className="resize-none"
-              />
-            </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="border-stone-200">Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleReject}
-                disabled={!rejectReason}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Reject Agreement
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      {/* Live Document Preview Panel - di luar grid agar sidebar tetap di samping */}
+      {agreement.file_path && (
+        <Card className="mt-6 bg-white border border-stone-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl font-semibold text-stone-900 flex items-center gap-2">
+                <Eye size={20} className="text-[#134E4A]" />
+                Preview Dokumen
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {agreement.file_path?.toLowerCase().endsWith('.pdf') && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-100">
+                    <FileText size={12} />
+                    PDF
+                  </span>
+                )}
+                {(agreement.file_path?.toLowerCase().endsWith('.doc') || agreement.file_path?.toLowerCase().endsWith('.docx')) && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100">
+                    <FileText size={12} />
+                    {agreement.file_path?.toLowerCase().endsWith('.docx') ? 'DOCX' : 'DOC'}
+                  </span>
+                )}
+                <span className="text-xs text-stone-400">
+                  {agreement.file_path.split(/[/\\]/).pop()}
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {previewUrl && agreement.file_path?.toLowerCase().endsWith('.pdf') ? (
+              <div className="rounded-lg overflow-hidden border border-stone-200 bg-stone-100" style={{ minHeight: '600px' }}>
+                <iframe
+                  src={previewUrl}
+                  title="Document Preview"
+                  className="w-full border-0"
+                  style={{ height: '700px', minHeight: '600px' }}
+                  data-testid="document-preview-iframe"
+                />
+              </div>
+            ) : (
+              <div className="rounded-lg border border-stone-200 bg-stone-50 p-8 text-center" style={{ minHeight: '200px' }}>
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center">
+                    <FileWarning size={28} className="text-stone-400" />
+                  </div>
+                  <div>
+                    <p className="text-base font-medium text-stone-700">
+                      Preview tidak tersedia untuk format ini
+                    </p>
+                    <p className="text-sm text-stone-500 mt-1">
+                      File DOC/DOCX tidak bisa ditampilkan langsung. Silakan download untuk melihat isi dokumen.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleDownload}
+                    className="bg-[#134E4A] hover:bg-[#115E59] text-white gap-2 h-10 px-6 rounded-md font-medium transition-all"
+                    data-testid="download-preview-fallback"
+                  >
+                    <Download size={16} />
+                    Download Dokumen
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <AlertDialogContent className="bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Agreement</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please provide a reason for rejecting this agreement.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="reason" className="mb-2 block">Reason</Label>
+            <Textarea
+              id="reason"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Enter rejection reason..."
+              className="resize-none"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-stone-200">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReject}
+              disabled={!rejectReason}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Reject Agreement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

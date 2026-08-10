@@ -92,6 +92,18 @@ const agreementSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    is_deleted: {
+        type: Boolean,
+        default: false
+    },
+    deleted_at: {
+        type: String,
+        default: null
+    },
+    deleted_by: {
+        type: String,
+        default: null
+    },
     created_at: {
         type: String,
         default: () => new Date().toISOString()

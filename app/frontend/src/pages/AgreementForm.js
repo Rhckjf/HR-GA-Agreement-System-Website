@@ -197,6 +197,8 @@ export default function AgreementForm() {
     e.preventDefault();
     setLoading(true);
 
+    let createdAgreementId = null;
+
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
@@ -207,28 +209,49 @@ export default function AgreementForm() {
         expiry_date: new Date(formData.expiry_date).toISOString()
       };
 
-      let agreementId = id;
-
       if (isEdit) {
         await axios.put(`${API}/agreements/${id}`, payload, { headers });
+        if (file) {
+          const formDataFile = new FormData();
+          formDataFile.append('file', file);
+          await axios.post(`${API}/agreements/${id}/upload`, formDataFile, {
+            headers: {
+              ...headers,
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+        }
         toast.success('Agreement updated successfully');
       } else {
+        // 1. Buat agreement terlebih dahulu
         const response = await axios.post(`${API}/agreements`, payload, { headers });
-        agreementId = response.data.id;
-        toast.success('Agreement created successfully');
-      }
+        createdAgreementId = response.data.id;
 
-      // Upload file if present
-      if (file) {
-        const formDataFile = new FormData();
-        formDataFile.append('file', file);
-        await axios.post(`${API}/agreements/${agreementId}/upload`, formDataFile, {
-          headers: {
-            ...headers,
-            'Content-Type': 'multipart/form-data'
+        // 2. Jika ada file, upload dan validasi file
+        if (file) {
+          try {
+            const formDataFile = new FormData();
+            formDataFile.append('file', file);
+            await axios.post(`${API}/agreements/${createdAgreementId}/upload`, formDataFile, {
+              headers: {
+                ...headers,
+                'Content-Type': 'multipart/form-data'
+              }
+            });
+          } catch (uploadError) {
+            // ROLLBACK: Jika upload file gagal (misal file palsu/invalid), hapus agreement yang baru dibuat
+            try {
+              await axios.delete(`${API}/agreements/${createdAgreementId}`, { headers });
+            } catch (cleanupError) {
+              console.error('Failed to rollback created agreement:', cleanupError);
+            }
+            // Lempar error upload ke catch utama agar toast error ditampilkan dan proses berhenti
+            throw uploadError;
           }
-        });
-        toast.success('File uploaded successfully');
+        }
+
+        // Pesan sukses HANYA ditampilkan jika buat agreement DAN upload file keduanya berhasil!
+        toast.success('Agreement created successfully');
       }
 
       navigate('/agreements');
@@ -441,18 +464,80 @@ export default function AgreementForm() {
                 <Label htmlFor="file" className="text-sm font-medium text-stone-700">
                   Upload Contract File (PDF/DOC)
                 </Label>
-                <div className="flex items-center gap-4">
-                  <Input
-                    id="file"
-                    data-testid="file-input"
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    onChange={(e) => setFile(e.target.files[0])}
-                    className="h-10"
-                  />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="file"
+                      data-testid="file-input"
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={(e) => {
+                        const selectedFile = e.target.files[0];
+                        if (!selectedFile) {
+                          setFile(null);
+                          return;
+                        }
+                        // Validasi ekstensi
+                        const allowedExts = ['.pdf', '.doc', '.docx'];
+                        const ext = '.' + selectedFile.name.split('.').pop().toLowerCase();
+                        if (!allowedExts.includes(ext)) {
+                          toast.error(`Tipe file ${ext} tidak diizinkan. Hanya PDF, DOC, dan DOCX.`);
+                          e.target.value = '';
+                          setFile(null);
+                          return;
+                        }
+                        // Validasi ukuran (max 10MB)
+                        const maxSize = 10 * 1024 * 1024;
+                        if (selectedFile.size > maxSize) {
+                          toast.error(`Ukuran file terlalu besar (${(selectedFile.size / (1024 * 1024)).toFixed(1)}MB). Maksimal 10MB.`);
+                          e.target.value = '';
+                          setFile(null);
+                          return;
+                        }
+                        // Validasi ukuran 0 byte
+                        if (selectedFile.size === 0) {
+                          toast.error('File kosong (0 byte). Silakan pilih file yang valid.');
+                          e.target.value = '';
+                          setFile(null);
+                          return;
+                        }
+                        setFile(selectedFile);
+                      }}
+                      className="h-10"
+                    />
+                  </div>
                   {file && (
-                    <span className="text-sm text-stone-600">{file.name}</span>
+                    <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg border border-stone-200">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-stone-200">
+                        {file.name.toLowerCase().endsWith('.pdf') ? (
+                          <span className="text-xs font-bold text-red-500">PDF</span>
+                        ) : (
+                          <span className="text-xs font-bold text-blue-500">DOC</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-stone-800 truncate">{file.name}</p>
+                        <p className="text-xs text-stone-500">
+                          {(file.size / 1024).toFixed(1)} KB • {file.name.split('.').pop().toUpperCase()}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFile(null);
+                          const input = document.getElementById('file');
+                          if (input) input.value = '';
+                        }}
+                        className="text-stone-400 hover:text-red-500 transition-colors p-1"
+                        title="Hapus file"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   )}
+                  <p className="text-xs text-stone-400">
+                    Format yang diizinkan: PDF, DOC, DOCX. Ukuran maksimal: 10MB.
+                  </p>
                 </div>
               </div>
             </div>

@@ -2,6 +2,7 @@ const Agreement = require('../models/agreement');
 const Vendor = require('../models/vendor');
 const Notification = require('../models/notification');
 const { calculateAgreementStatus } = require('../utils/status');
+const { createAuditEntry } = require('./auditLogController');
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
@@ -22,8 +23,8 @@ const getIdQuery = (idParam) => {
 // @access  Private
 const getAgreements = async (req, res) => {
     try {
-        const { category, status, approval_status, search, cycle_year, department } = req.query;
-        let query = {};
+        const { category, status, approval_status, search, cycle_year, department, date_from, date_to, has_document } = req.query;
+        let query = { is_deleted: { $ne: true } }; // Filter out soft-deleted records
 
         // Department Scoping:
         // Staff can see agreements from THEIR department (current dept) OR
@@ -47,9 +48,42 @@ const getAgreements = async (req, res) => {
         if (approval_status) {
             // When combined with $or, we need $and to avoid accidentally overwriting it
             if (query.$or) {
-                query = { $and: [{ $or: query.$or }, { approval_status: approval_status }] };
+                query = { $and: [{ $or: query.$or }, { approval_status: approval_status }, { is_deleted: { $ne: true } }] };
             } else {
                 query.approval_status = approval_status;
+            }
+        }
+
+        // Filter rentang tanggal
+        if (date_from || date_to) {
+            const dateFilter = {};
+            if (date_from) dateFilter.$gte = new Date(date_from).toISOString();
+            if (date_to) {
+                const endDate = new Date(date_to);
+                endDate.setHours(23, 59, 59, 999);
+                dateFilter.$lte = endDate.toISOString();
+            }
+            if (query.$and) {
+                query.$and.push({ expiry_date: dateFilter });
+            } else {
+                query.expiry_date = dateFilter;
+            }
+        }
+
+        // Filter dokumen
+        if (has_document === 'yes') {
+            const docFilter = { file_path: { $ne: null } };
+            if (query.$and) {
+                query.$and.push(docFilter);
+            } else {
+                query.file_path = { $ne: null };
+            }
+        } else if (has_document === 'no') {
+            const docFilter = { $or: [{ file_path: null }, { file_path: { $exists: false } }] };
+            if (query.$and) {
+                query.$and.push(docFilter);
+            } else {
+                query.file_path = null;
             }
         }
 
@@ -59,12 +93,15 @@ const getAgreements = async (req, res) => {
             const searchOr = [
                 { title: searchRegex },
                 { vendor_name: searchRegex },
-                { origin_department: searchRegex }
+                { origin_department: searchRegex },
+                { description: searchRegex },
+                { category: searchRegex },
+                { id: searchRegex }
             ];
             if (query.$and) {
                 query.$and.push({ $or: searchOr });
             } else if (query.$or) {
-                query = { $and: [{ $or: query.$or }, { $or: searchOr }] };
+                query = { $and: [{ $or: query.$or }, { $or: searchOr }, { is_deleted: { $ne: true } }] };
             } else {
                 query.$or = searchOr;
             }
@@ -93,7 +130,9 @@ const getAgreements = async (req, res) => {
 // @access  Private
 const getAgreement = async (req, res) => {
     try {
-        const agreement = await Agreement.findOne(getIdQuery(req.params.id)).lean();
+        const idQuery = getIdQuery(req.params.id);
+        idQuery.is_deleted = { $ne: true }; // Filter out soft-deleted
+        const agreement = await Agreement.findOne(idQuery).lean();
 
         if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
@@ -174,6 +213,17 @@ const createAgreement = async (req, res) => {
             });
         }
 
+        // Audit log: create
+        await createAuditEntry({
+            action: 'create',
+            entity_id: agreement.id,
+            entity_title: agreement.title,
+            performed_by: req.user.id,
+            performed_by_name: req.user.name,
+            department: req.user.department,
+            details: `Agreement "${agreement.title}" dibuat oleh ${req.user.name}`
+        });
+
         res.status(200).json(agreement);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -223,6 +273,18 @@ const updateAgreement = async (req, res) => {
         ).lean();
 
         agreement.status = calculateAgreementStatus(agreement.expiry_date);
+
+        // Audit log: update
+        await createAuditEntry({
+            action: 'update',
+            entity_id: agreement.id,
+            entity_title: agreement.title,
+            performed_by: req.user.id,
+            performed_by_name: req.user.name,
+            department: req.user.department,
+            details: `Agreement "${agreement.title}" diperbarui oleh ${req.user.name}`
+        });
+
         res.json(agreement);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -237,10 +299,35 @@ const deleteAgreement = async (req, res) => {
         return res.status(403).json({ detail: 'Admin cannot delete agreements' });
     }
     try {
-        const result = await Agreement.findOneAndDelete(getIdQuery(req.params.id));
-        if (!result) {
+        const agreement = await Agreement.findOne(getIdQuery(req.params.id)).lean();
+        if (!agreement) {
             return res.status(404).json({ detail: 'Agreement not found' });
         }
+
+        // Simpan snapshot untuk pemulihan, lalu soft delete
+        await createAuditEntry({
+            action: 'delete',
+            entity_id: agreement.id,
+            entity_title: agreement.title,
+            performed_by: req.user.id,
+            performed_by_name: req.user.name,
+            department: req.user.department,
+            details: `Agreement "${agreement.title}" dihapus oleh ${req.user.name}`,
+            snapshot: agreement
+        });
+
+        // Soft delete: tandai sebagai dihapus, jangan hapus permanen
+        await Agreement.updateOne(
+            getIdQuery(req.params.id),
+            {
+                $set: {
+                    is_deleted: true,
+                    deleted_at: new Date().toISOString(),
+                    deleted_by: req.user.id
+                }
+            }
+        );
+
         res.json({ message: 'Agreement deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -268,6 +355,17 @@ const uploadAgreementFile = async (req, res) => {
             getIdQuery(req.params.id),
             { $set: { file_path: filePath } }
         );
+
+        // Audit log: upload
+        await createAuditEntry({
+            action: 'upload',
+            entity_id: agreement.id,
+            entity_title: agreement.title,
+            performed_by: req.user.id,
+            performed_by_name: req.user.name,
+            department: req.user.department,
+            details: `File "${req.file.originalname}" diupload untuk agreement "${agreement.title}"`
+        });
 
         res.json({ message: 'File uploaded successfully', file_path: filePath });
     } catch (error) {
@@ -397,6 +495,17 @@ const approveAgreement = async (req, res) => {
             });
         }
 
+        // Audit log: approve
+        await createAuditEntry({
+            action: 'approve',
+            entity_id: agreement.id,
+            entity_title: agreement.title,
+            performed_by: req.user.id,
+            performed_by_name: req.user.name,
+            department: req.user.department || 'Admin',
+            details: `Agreement "${agreement.title}" disetujui oleh ${req.user.name}`
+        });
+
         agreement.status = calculateAgreementStatus(agreement.expiry_date);
         res.json(agreement);
     } catch (error) {
@@ -445,6 +554,17 @@ const rejectAgreement = async (req, res) => {
                 created_at: new Date().toISOString()
             });
         }
+
+        // Audit log: reject
+        await createAuditEntry({
+            action: 'reject',
+            entity_id: agreement.id,
+            entity_title: agreement.title,
+            performed_by: req.user.id,
+            performed_by_name: req.user.name,
+            department: req.user.department || 'Admin',
+            details: `Agreement "${agreement.title}" ditolak oleh ${req.user.name}. Alasan: ${reason}`
+        });
 
         agreement.status = calculateAgreementStatus(agreement.expiry_date);
         res.json(agreement);

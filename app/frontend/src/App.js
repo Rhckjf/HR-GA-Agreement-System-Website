@@ -11,6 +11,7 @@ import AgreementsList from "@/pages/AgreementsList";
 import AgreementForm from "@/pages/AgreementForm";
 import AgreementDetail from "@/pages/AgreementDetail";
 import VendorsList from "@/pages/VendorsList";
+import AuditLogs from "@/pages/AuditLogs";
 import Layout from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -68,6 +69,13 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <DepartmentSettings />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/audit-logs" element={
+            <ProtectedRoute>
+              <Layout>
+                <AuditLogs />
               </Layout>
             </ProtectedRoute>
           } />

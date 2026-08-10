@@ -14,7 +14,9 @@ import {
   X,
   Check,
   Clock,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Paperclip,
+  FileText as FileTextIcon,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -63,6 +65,7 @@ export default function AgreementsList() {
   const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
   const vendorDropdownRef = useRef(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
+  const [hasDocumentFilter, setHasDocumentFilter] = useState('all');
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user?.role === 'admin';
@@ -79,7 +82,7 @@ export default function AgreementsList() {
 
   useEffect(() => {
     filterAgreements();
-  }, [agreements, searchTerm, categoryFilter, statusFilter, approvalFilter, selectedVendors]);
+  }, [agreements, searchTerm, categoryFilter, statusFilter, approvalFilter, selectedVendors, hasDocumentFilter]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -94,12 +97,15 @@ export default function AgreementsList() {
   const fetchAgreements = async () => {
     try {
       const token = localStorage.getItem('token');
-      let url = `${API}/agreements`;
+      const params = new URLSearchParams();
 
       // If a department filter was passed in the URL, send it to the backend
       if (departmentFilter && departmentFilter !== 'all') {
-        url += `?department=${departmentFilter}`;
+        params.set('department', departmentFilter);
       }
+
+      const queryStr = params.toString();
+      const url = `${API}/agreements${queryStr ? '?' + queryStr : ''}`;
 
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -140,9 +146,13 @@ export default function AgreementsList() {
     let filtered = [...agreements];
 
     if (searchTerm) {
+      const term = searchTerm.toLowerCase();
       filtered = filtered.filter(a =>
-        a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        a.title.toLowerCase().includes(term) ||
+        a.vendor_name?.toLowerCase().includes(term) ||
+        a.description?.toLowerCase().includes(term) ||
+        a.category?.toLowerCase().includes(term) ||
+        a.id?.toLowerCase().includes(term)
       );
     }
 
@@ -162,7 +172,24 @@ export default function AgreementsList() {
       filtered = filtered.filter(a => selectedVendors.includes(a.vendor_name));
     }
 
+    if (hasDocumentFilter === 'yes') {
+      filtered = filtered.filter(a => a.file_path);
+    } else if (hasDocumentFilter === 'no') {
+      filtered = filtered.filter(a => !a.file_path);
+    }
+
     setFilteredAgreements(filtered);
+  };
+
+  // Helper untuk highlight search term di teks
+  const highlightText = (text, term) => {
+    if (!term || !text) return text || '-';
+    const parts = String(text).split(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+    return parts.map((part, i) =>
+      part.toLowerCase() === term.toLowerCase()
+        ? <mark key={i} className="bg-amber-200/70 text-stone-900 rounded-sm px-0.5">{part}</mark>
+        : part
+    );
   };
 
   const exportToExcel = () => {
@@ -259,11 +286,11 @@ export default function AgreementsList() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-stone-200 p-6 shadow-sm">
-        <div className={`grid grid-cols-1 gap-4 ${isAdmin ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
+        <div className={`grid grid-cols-1 gap-4 ${isAdmin ? 'md:grid-cols-6' : 'md:grid-cols-5'}`}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
             <Input
-              placeholder="Search by title or vendor..."
+              placeholder="Cari judul, vendor, deskripsi, kategori..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 h-10"
@@ -361,6 +388,26 @@ export default function AgreementsList() {
             </SelectContent>
           </Select>
 
+          {/* Filter Dokumen */}
+          <Select value={hasDocumentFilter} onValueChange={setHasDocumentFilter}>
+            <SelectTrigger className="h-10" data-testid="has-document-filter">
+              <SelectValue placeholder="Semua Dokumen" />
+            </SelectTrigger>
+            <SelectContent className="bg-white">
+              <SelectItem value="all">Semua Dokumen</SelectItem>
+              <SelectItem value="yes">
+                <span className="flex items-center gap-2">
+                  <Paperclip size={13} className="text-green-500" /> Ada Dokumen
+                </span>
+              </SelectItem>
+              <SelectItem value="no">
+                <span className="flex items-center gap-2">
+                  <FileTextIcon size={13} className="text-stone-400" /> Tanpa Dokumen
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
           {/* Approval Status Filter — admin only */}
           {isAdmin && (
             <Select value={approvalFilter} onValueChange={setApprovalFilter}>
@@ -388,6 +435,14 @@ export default function AgreementsList() {
             </Select>
           )}
         </div>
+      </div>
+
+      {/* Info jumlah hasil */}
+      <div className="flex items-center justify-between text-sm text-stone-500">
+        <span>
+          Menampilkan {filteredAgreements.length} dari {agreements.length} agreement
+          {searchTerm && <> untuk pencarian "<strong className="text-stone-700">{searchTerm}</strong>"</>}
+        </span>
       </div>
 
       {/* Table */}
@@ -423,9 +478,9 @@ export default function AgreementsList() {
                   className="hover:bg-stone-50 cursor-pointer transition-colors"
                   data-testid={`agreement-row-${agreement._id || agreement.id}`}
                 >
-                  <TableCell className="font-medium text-stone-900">{agreement.title}</TableCell>
-                  <TableCell className="text-stone-600">{agreement.vendor_name || 'N/A'}</TableCell>
-                  <TableCell className="text-stone-600">{agreement.category}</TableCell>
+                  <TableCell className="font-medium text-stone-900">{highlightText(agreement.title, searchTerm)}</TableCell>
+                  <TableCell className="text-stone-600">{highlightText(agreement.vendor_name || 'N/A', searchTerm)}</TableCell>
+                  <TableCell className="text-stone-600">{highlightText(agreement.category, searchTerm)}</TableCell>
                   <TableCell>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-800">
                       {agreement.origin_department || 'Unknown'}

@@ -13,6 +13,7 @@ import {
   Users as UsersIcon,
   Grid3X3,
   Mail,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -73,6 +74,7 @@ export default function Layout({ children }) {
         { name: 'Master Data', href: '/vendors', icon: Building2 },
         { name: 'Users', href: '/admin/users', icon: UsersIcon },
         { name: 'Dept Emails', href: '/admin/departments', icon: Mail },
+        { name: 'Audit Log', href: '/admin/audit-logs', icon: History },
       ];
     }
     const vendorMenuLabel = deptConfig?.vendorLabel ? `${deptConfig.vendorLabel}s` : 'Vendors';
@@ -80,6 +82,7 @@ export default function Layout({ children }) {
       { name: 'Dashboard', href: `/department/${user?.department}`, icon: LayoutDashboard },
       { name: 'Agreements', href: '/agreements', icon: FileText },
       { name: vendorMenuLabel, href: '/vendors', icon: Building2 },
+      { name: 'Audit Log', href: '/admin/audit-logs', icon: History },
     ];
   };
 

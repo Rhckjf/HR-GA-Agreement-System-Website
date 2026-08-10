@@ -14,6 +14,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const departmentSettingsRoutes = require('./routes/departmentSettingsRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes); // This handles /api/admin/users
 app.use('/api/departments', departmentRoutes);
 app.use('/api/department-settings', departmentSettingsRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 
 app.get('/', (req, res) => {
     res.send('API is running...');

@@ -15,6 +15,7 @@ const {
 } = require('../controllers/agreementController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const fileValidator = require('../middleware/fileValidator');
 
 router.route('/')
     .get(protect, getAgreements)
@@ -27,7 +28,7 @@ router.route('/:id')
     .put(protect, updateAgreement)
     .delete(protect, deleteAgreement);
 
-router.post('/:id/upload', protect, upload.single('file'), uploadAgreementFile);
+router.post('/:id/upload', protect, upload.single('file'), fileValidator, uploadAgreementFile);
 router.get('/:id/download', protect, downloadAgreement);
 router.get('/:id/preview', protect, previewAgreement);
 router.put('/:id/approve', protect, approveAgreement);
